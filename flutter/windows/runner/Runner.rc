@@ -90,7 +90,7 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "Purslane Tech Pte. Ltd." "\0"
-            VALUE "FileDescription", "RustDesk Remote Desktop" "\0"
+            VALUE "FileDescription", "elvs Fernwartung" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "rustdesk" "\0"
             VALUE "LegalCopyright", "Copyright © 2026 Purslane Tech Pte. Ltd. All rights reserved." "\0"
