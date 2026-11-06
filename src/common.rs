@@ -2506,7 +2506,28 @@ pub fn rustdesk_interval(i: Interval) -> ThrottledInterval {
     ThrottledInterval::new(i)
 }
 
+// Build-time server defaults (RENDEZVOUS_SERVER, RELAY_SERVER, API_SERVER, RS_PUB_KEY).
+// They only seed DEFAULT_SETTINGS, so options saved by the user still take precedence.
+fn apply_build_time_server_defaults() {
+    let defaults = [
+        (
+            keys::OPTION_CUSTOM_RENDEZVOUS_SERVER,
+            option_env!("RENDEZVOUS_SERVER"),
+        ),
+        (keys::OPTION_RELAY_SERVER, option_env!("RELAY_SERVER")),
+        (keys::OPTION_API_SERVER, option_env!("API_SERVER")),
+        (keys::OPTION_KEY, option_env!("RS_PUB_KEY")),
+    ];
+    let mut settings = config::DEFAULT_SETTINGS.write().unwrap();
+    for (k, v) in defaults {
+        if let Some(v) = v.map(str::trim).filter(|v| !v.is_empty()) {
+            settings.entry(k.to_owned()).or_insert_with(|| v.to_owned());
+        }
+    }
+}
+
 pub fn load_custom_client() {
+    apply_build_time_server_defaults();
     #[cfg(debug_assertions)]
     if let Ok(data) = std::fs::read_to_string("./custom.txt") {
         read_custom_client(data.trim());
@@ -2605,6 +2626,7 @@ pub fn get_dst_align_rgba() -> usize {
 }
 
 pub fn read_custom_client(config: &str) {
+    apply_build_time_server_defaults();
     let Ok(data) = decode64(config) else {
         log::error!("Failed to decode custom client config");
         return;
