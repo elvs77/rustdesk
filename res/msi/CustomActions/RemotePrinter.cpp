@@ -574,7 +574,7 @@ extern "C" UINT __stdcall SetPrinterInstallDefault(__in MSIHANDLE hInstall)
     hr = WcaInitialize(hInstall, "SetPrinterInstallDefault");
     ExitOnFailure(hr, "Failed to initialize printer detection");
 
-    hr = WcaGetProperty(L"ProductName", &appName);
+    hr = WcaGetProperty(L"ELVS_APP_NAME", &appName);
     ExitOnFailure(hr, "Failed to get the printer's application name");
 
     hr = RemotePrinter::queryPrinterPresence(RemotePrinter::printerNameOf(appName).c_str());

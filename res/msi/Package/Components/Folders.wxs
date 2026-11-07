@@ -37,7 +37,7 @@
 		</StandardDirectory>
 
 		<StandardDirectory Id="ProgramMenuFolder">
-			<Directory Id="App.StartMenu" Name="$(var.Product)" />
+			<Directory Id="App.StartMenu" Name="$(var.DisplayProduct)" />
 		</StandardDirectory>
 
 		<StandardDirectory Id="DesktopFolder" />

@@ -80,17 +80,19 @@ fn make_tray() -> hbb_common::ResultType<()> {
     } else {
         tray_menu.append_items(&[&open_i]).ok();
     }
+    // elvs: displayed name only; the tray id and app name stay unchanged.
+    const ELVS_DISPLAY_NAME: &str = "Elvs IT-Support";
     let tooltip = |count: usize| {
         if count == 0 {
             format!(
                 "{} {}",
-                crate::get_app_name(),
+                ELVS_DISPLAY_NAME,
                 translate("Service is running".to_owned()),
             )
         } else {
             format!(
                 "{} - {}\n{}",
-                crate::get_app_name(),
+                ELVS_DISPLAY_NAME,
                 translate("Ready".to_owned()),
                 translate("{".to_string() + &format!("{count}") + "} sessions"),
             )

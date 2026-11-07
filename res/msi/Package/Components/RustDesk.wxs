@@ -36,8 +36,8 @@
 		     MSI's NUL escape rather than that delimiter, so the action parses this
 		     itself. Passing the name keeps the dll free of it, so one build serves
 		     every custom client. -->
-		<CustomAction Id="InstallPrinter.SetParam" Return="check" Property="InstallPrinter" Value="[ProductName]|[INSTALLFOLDER_INNER]" />
-		<CustomAction Id="UninstallPrinter.SetParam" Return="check" Property="UninstallPrinter" Value="[ProductName]" />
+		<CustomAction Id="InstallPrinter.SetParam" Return="check" Property="InstallPrinter" Value="$(var.Product)|[INSTALLFOLDER_INNER]" />
+		<CustomAction Id="UninstallPrinter.SetParam" Return="check" Property="UninstallPrinter" Value="$(var.Product)" />
 		<InstallExecuteSequence>
 
 			<Custom Action="SetPropertyIsServiceRunning" After="InstallInitialize" Condition="Installed" />

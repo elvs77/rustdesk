@@ -4,7 +4,7 @@
 
 	<?include Includes.wxi?>
 
-	<Package Name="$(var.Product)" Version="$(var.Version)" Manufacturer="$(var.Manufacturer)" Language="!(loc.ProductLanguage)" UpgradeCode="$(var.UpgradeCode)" Scope="perMachine">
+	<Package Name="$(var.DisplayProduct)" Version="$(var.Version)" Manufacturer="$(var.Manufacturer)" Language="!(loc.ProductLanguage)" UpgradeCode="$(var.UpgradeCode)" Scope="perMachine">
 
 		<SummaryInformation Keywords="Installer" Description="$(var.Description)" Codepage="!(loc.SummaryCodepage)" />
 
@@ -20,6 +20,8 @@
 		     msi is built without template mode and keeps a single cabinet. -->
 		<!--$Media2End$-->
 		<Icon Id="AppIcon" SourceFile="Resources\icon.ico" />
+		<!-- elvs: internal app name for custom actions (printer), independent of the displayed ProductName -->
+		<Property Id="ELVS_APP_NAME" Value="$(var.Product)" />
 		<CustomAction Id="BlockSelfInstalledApp" Error="!(loc.AnotherAppDialogDescription)" />
 
 		<!-- User Interface -->

@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Include xmlns="http://wixtoolset.org/schemas/v4/wxs">
 
+	<!-- elvs: name shown in Apps & Features, start menu and on the desktop; internal names keep $(var.Product) -->
+	<?define DisplayProduct="Elvs IT-Support" ?>
+
 	<!--$PreVarsStart$-->
 	<!--$PreVarsEnd$-->
 
