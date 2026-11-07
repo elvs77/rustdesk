@@ -150,6 +150,9 @@ pub(crate) fn verify_update_metadata(
     signature_bytes: &[u8],
     requirements: UpdateMetadataRequirements<'_>,
 ) -> ResultType<VerifiedUpdateArtifact> {
+    if crate::common::is_elvs_update_channel() {
+        return verify_elvs_update_metadata(metadata_bytes, requirements);
+    }
     let artifact_url_policy =
         ArtifactUrlPolicy::ExactPrefix(requirements.expected_artifact_url_prefix);
     let metadata_requirements = MetadataRequirements {
@@ -167,6 +170,51 @@ pub(crate) fn verify_update_metadata(
             trusted_keys: TRUSTED_UPDATE_KEYS,
         },
     )
+}
+
+/// elvs: metadata of the own update channel is not signed (the RustDesk signing key
+/// is not available, and no own key is configured). Trust is based on HTTPS to
+/// github.com and the exact release URL prefix of the configured repository
+/// (`crate::common::update_repo()`); size and sha256 of the installer are still
+/// enforced. The official RustDesk key is never accepted here, so this channel
+/// can't install official RustDesk releases.
+fn verify_elvs_update_metadata(
+    metadata_bytes: &[u8],
+    requirements: UpdateMetadataRequirements<'_>,
+) -> ResultType<VerifiedUpdateArtifact> {
+    let metadata: UpdateMetadata =
+        serde_json::from_slice(metadata_bytes).context("invalid update metadata JSON")?;
+    if metadata.schema_version != METADATA_SCHEMA_VERSION {
+        return Err(anyhow!("unsupported update metadata schema version"));
+    }
+    if metadata.app != UPDATE_APP {
+        return Err(anyhow!("update metadata app mismatch"));
+    }
+    if metadata.package_id != PUBLIC_UPDATE_PACKAGE_ID {
+        return Err(anyhow!("update metadata package id is not allowed"));
+    }
+    if requirements.expected_version != metadata.version {
+        return Err(anyhow!("update metadata version mismatch"));
+    }
+    if requirements.expected_release_id != metadata.release_id {
+        return Err(anyhow!("update metadata release id mismatch"));
+    }
+    for artifact in &metadata.artifacts {
+        validate_artifact_file_name(&artifact.file_name)?;
+    }
+    let artifact = select_artifact(&metadata, &requirements.artifact)?;
+    validate_artifact(
+        artifact,
+        ArtifactUrlPolicy::ExactPrefix(requirements.expected_artifact_url_prefix),
+    )?;
+    Ok(VerifiedUpdateArtifact {
+        version: metadata.version.clone(),
+        url: artifact.url.clone(),
+        #[cfg(target_os = "macos")]
+        file_name: artifact.file_name.clone(),
+        size: artifact.size,
+        sha256: artifact.sha256.clone(),
+    })
 }
 
 fn validate_signature_schema(signature: &UpdateSignature) -> ResultType<()> {

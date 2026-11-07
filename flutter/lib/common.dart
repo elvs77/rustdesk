@@ -1636,6 +1636,9 @@ String bool2option(String option, bool b) {
       option != kOptionEnableIpv6Punch &&
       option != kOptionEnableWebrtc) {
     res = b ? defaultOptionYes : 'N';
+  } else if (option == kOptionAllowAutoUpdate) {
+    // elvs: auto update may be on by default, so "off" must be stored explicitly.
+    res = b ? 'Y' : 'N';
   } else if (option.startsWith('allow-') ||
       option == kOptionStopService ||
       option == kOptionDirectServer ||

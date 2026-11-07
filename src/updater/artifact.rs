@@ -106,12 +106,21 @@ pub(super) fn verified_update_artifact_from_release_page_url(
 ) -> ResultType<VerifiedUpdateArtifact> {
     let release_id = release_id_from_update_url(update_url)?;
     let display_version = display_version_from_release_id(&release_id)?;
+    let (repo_owner, repo_name) = crate::common::update_repo();
     let expected_artifact_url_prefix =
-        format!("https://github.com/rustdesk/rustdesk/releases/download/{release_id}/");
-    let metadata_url = format!("{expected_artifact_url_prefix}rustdesk-update.json");
-    let signature_url = format!("{metadata_url}.sig");
+        format!("https://github.com/{repo_owner}/{repo_name}/releases/download/{release_id}/");
+    let metadata_url = format!(
+        "{expected_artifact_url_prefix}{}",
+        crate::common::ELVS_UPDATE_METADATA_FILE
+    );
     let metadata_bytes = fetch_update_sidecar_bytes(&metadata_url)?;
-    let signature_bytes = fetch_update_sidecar_bytes(&signature_url)?;
+    // elvs: the own channel publishes unsigned metadata (see update_metadata.rs).
+    let signature_bytes = if crate::common::is_elvs_update_channel() {
+        Vec::new()
+    } else {
+        let signature_url = format!("{metadata_url}.sig");
+        fetch_update_sidecar_bytes(&signature_url)?
+    };
     let requirements = UpdateMetadataRequirements {
         expected_version: display_version.as_str(),
         expected_release_id: release_id.as_str(),
@@ -177,8 +186,9 @@ pub fn get_update_download_file_from_url(url: &str) -> Option<PathBuf> {
     let tag = segments.next()?;
     let filename = segments.next()?;
 
-    if owner != "rustdesk"
-        || repo != "rustdesk"
+    let (repo_owner, repo_name) = crate::common::update_repo();
+    if owner != repo_owner
+        || repo != repo_name
         || releases != "releases"
         || download != "download"
         || tag.is_empty()

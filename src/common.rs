@@ -1057,6 +1057,93 @@ pub fn is_modifier(evt: &KeyEvent) -> bool {
     }
 }
 
+// elvs: own update channel.
+// When ELVS_UPDATE_REPO ("owner/name") is set at build time, the version check and
+// all update downloads use the GitHub releases of that repository only. Release tags
+// are "elvs-<rustdesk version>-<build>", e.g. "elvs-1.5.1-2"; the build number of the
+// running client comes from ELVS_BUILD. api.rustdesk.com and rustdesk/rustdesk
+// releases are never used in that case. Builds without ELVS_UPDATE_REPO behave as before.
+pub(crate) const ELVS_RELEASE_PREFIX: &str = "elvs-";
+pub(crate) const ELVS_UPDATE_METADATA_FILE: &str = "rustdesk-update.json";
+
+#[inline]
+pub(crate) fn is_elvs_update_channel() -> bool {
+    option_env!("ELVS_UPDATE_REPO").is_some()
+}
+
+/// GitHub (owner, repository) whose releases are trusted for updates.
+pub(crate) fn update_repo() -> (&'static str, &'static str) {
+    match option_env!("ELVS_UPDATE_REPO") {
+        None => ("rustdesk", "rustdesk"),
+        Some(repo) => repo
+            .trim()
+            .split_once('/')
+            .filter(|(owner, name)| {
+                let ok = |s: &str| {
+                    !s.is_empty()
+                        && s.bytes()
+                            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.'))
+                };
+                ok(*owner) && ok(*name)
+            })
+            // A malformed value must never fall back to the official repository.
+            .unwrap_or(("invalid-elvs-update-repo", "invalid")),
+    }
+}
+
+/// Build number of this client within its RustDesk version (ELVS_BUILD, default 0).
+pub(crate) fn elvs_build_number() -> u32 {
+    option_env!("ELVS_BUILD")
+        .and_then(|v| v.trim().parse::<u32>().ok())
+        .unwrap_or(0)
+}
+
+/// Splits "elvs-1.5.1-2" into ("1.5.1", 2).
+pub(crate) fn parse_elvs_release_id(release_id: &str) -> ResultType<(&str, u32)> {
+    let Some(rest) = release_id.strip_prefix(ELVS_RELEASE_PREFIX) else {
+        bail!("Release id is not an elvs release: {}", release_id);
+    };
+    let Some((version, build)) = rest.rsplit_once('-') else {
+        bail!("Release id has no elvs build number: {}", release_id);
+    };
+    if build.is_empty() || !build.chars().all(|c| c.is_ascii_digit()) {
+        bail!(
+            "Release id has an invalid elvs build number: {}",
+            release_id
+        );
+    }
+    let build = build.parse::<u32>()?;
+    Ok((version, build))
+}
+
+/// Reads the release id from the metadata of the latest elvs release and returns
+/// the release page URL ("https://github.com/<owner>/<repo>/releases/tag/<id>").
+/// The metadata is verified again (sha256, size, URL prefix) before any download.
+async fn elvs_latest_release_page_url() -> ResultType<String> {
+    const MAX_BYTES: usize = 1024 * 1024;
+    let (owner, repo) = update_repo();
+    let url = format!(
+        "https://github.com/{owner}/{repo}/releases/latest/download/{ELVS_UPDATE_METADATA_FILE}"
+    );
+    let client = crate::hbbs_http::create_http_client_async_with_url_strict(&url).await?;
+    let response = client.get(&url).send().await?;
+    let status = response.status();
+    if !status.is_success() {
+        bail!("Software update check failed with HTTP status: {status}");
+    }
+    let bytes = response.bytes().await?;
+    if bytes.len() > MAX_BYTES {
+        bail!("Update metadata exceeds {MAX_BYTES} bytes");
+    }
+    let metadata: Value = serde_json::from_slice(&bytes)?;
+    let Some(release_id) = metadata.get("release_id").and_then(|v| v.as_str()) else {
+        bail!("Update metadata has no release_id");
+    };
+    Ok(format!(
+        "https://github.com/{owner}/{repo}/releases/tag/{release_id}"
+    ))
+}
+
 pub fn check_software_update() {
     if is_custom_client() {
         return;
@@ -1096,9 +1183,14 @@ pub(crate) fn release_id_from_update_url(update_url: &str) -> ResultType<String>
         bail!("Update URL has no path: {}", update_url);
     };
     let segments = segments.collect::<Vec<_>>();
+    let (repo_owner, repo_name) = update_repo();
     let release_id = match segments.as_slice() {
-        ["rustdesk", "rustdesk", "releases", "tag", release_id] => *release_id,
-        ["rustdesk", "rustdesk", "releases", "tag", release_id, ""] => *release_id,
+        [owner, repo, "releases", "tag", release_id]
+        | [owner, repo, "releases", "tag", release_id, ""]
+            if *owner == repo_owner && *repo == repo_name =>
+        {
+            *release_id
+        }
         _ => bail!(
             "Update URL is not a RustDesk release tag URL: {}",
             update_url
@@ -1128,7 +1220,11 @@ pub(crate) fn url_has_explicit_port(raw_url: &str) -> bool {
 }
 
 pub(crate) fn display_version_from_release_id(release_id: &str) -> ResultType<String> {
-    let display_version = release_id.strip_prefix('v').unwrap_or(release_id);
+    let display_version = if is_elvs_update_channel() {
+        parse_elvs_release_id(release_id)?.0
+    } else {
+        release_id.strip_prefix('v').unwrap_or(release_id)
+    };
     let segments = display_version.split('.').collect::<Vec<_>>();
     if segments.len() != 3
         || segments.iter().any(|segment| {
@@ -1152,11 +1248,21 @@ fn clear_software_update_url() {
 
 fn process_software_update_check_response(bytes: Bytes) -> ResultType<()> {
     let resp: hbb_common::VersionCheckResponse = serde_json::from_slice(&bytes)?;
-    let response_url = resp.url;
+    process_software_update_release_page_url(resp.url)
+}
+
+fn process_software_update_release_page_url(response_url: String) -> ResultType<()> {
     let release_id = release_id_from_update_url(&response_url)?;
     let latest_release_version = display_version_from_release_id(&release_id)?;
 
-    if get_version_number(&latest_release_version) > get_version_number(crate::VERSION) {
+    let is_newer = if is_elvs_update_channel() {
+        let (_, latest_build) = parse_elvs_release_id(&release_id)?;
+        (get_version_number(&latest_release_version), latest_build)
+            > (get_version_number(crate::VERSION), elvs_build_number())
+    } else {
+        get_version_number(&latest_release_version) > get_version_number(crate::VERSION)
+    };
+    if is_newer {
         #[cfg(feature = "flutter")]
         {
             let mut m = HashMap::new();
@@ -1177,6 +1283,16 @@ fn process_software_update_check_response(bytes: Bytes) -> ResultType<()> {
 // Because the url is always `https://api.rustdesk.com/version/latest`.
 #[tokio::main(flavor = "current_thread")]
 pub async fn do_check_software_update() -> hbb_common::ResultType<()> {
+    if is_elvs_update_channel() {
+        let result = match elvs_latest_release_page_url().await {
+            Ok(url) => process_software_update_release_page_url(url),
+            Err(err) => Err(err),
+        };
+        if result.is_err() {
+            clear_software_update_url();
+        }
+        return result;
+    }
     let (request, url) =
         hbb_common::version_check_request(hbb_common::VER_TYPE_RUSTDESK_CLIENT.to_string());
     let proxy_conf = Config::get_socks();
@@ -2523,6 +2639,13 @@ fn apply_build_time_server_defaults() {
         if let Some(v) = v.map(str::trim).filter(|v| !v.is_empty()) {
             settings.entry(k.to_owned()).or_insert_with(|| v.to_owned());
         }
+    }
+    // elvs: silent auto update is on by default for builds with the own update channel.
+    // The user can still switch it off ("N" is stored and takes precedence).
+    if is_elvs_update_channel() {
+        settings
+            .entry(keys::OPTION_ALLOW_AUTO_UPDATE.to_owned())
+            .or_insert_with(|| "Y".to_owned());
     }
 }
 

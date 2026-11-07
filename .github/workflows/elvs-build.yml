@@ -1,19 +1,31 @@
 # elvs Fernwartung: custom RustDesk client build (Windows x64 + macOS x86_64/arm64).
 #
-# Reduced copy of the Windows-x64 and macOS jobs from flutter-build.yml.
-# No signing, no release/tag upload, no update metadata. Results are uploaded
-# as workflow artifacts only (Actions -> run -> Artifacts).
+# Reduced copy of the Windows-x64 and macOS jobs from flutter-build.yml. No signing.
+#
+# - Push to branch "elvs": build only, installers are uploaded as workflow artifacts.
+# - Run workflow manually with "release" = true, or push a tag "elvs-<version>-<n>":
+#   after a successful build a GitHub release "elvs-<version>-<n>" is published in this
+#   repository with fixed asset names and the update metadata (rustdesk-update.json).
+#   Installed clients check the latest release of this repository (own update channel,
+#   see ELVS_UPDATE_REPO in src/common.rs) and update themselves.
 name: elvs build
 
 on:
   push:
     branches:
       - elvs
+    tags:
+      - "elvs-*"
   workflow_dispatch:
+    inputs:
+      release:
+        description: "Publish a GitHub release (update for all installed clients)"
+        type: boolean
+        default: false
 
 concurrency:
-  group: elvs-build-${{ github.ref }}
-  cancel-in-progress: true
+  group: elvs-build-${{ github.ref }}-${{ (inputs.release || startsWith(github.ref, 'refs/tags/')) && 'release' || 'build' }}
+  cancel-in-progress: ${{ !(inputs.release || startsWith(github.ref, 'refs/tags/')) }}
 
 permissions:
   contents: read
@@ -24,6 +36,8 @@ env:
   RELAY_SERVER: "support.elvs.it:21117"
   API_SERVER: "http://support.elvs.it:21114"
   RS_PUB_KEY: "6hSa0cQbMIhdBeHkGski5D5sB78JE1gD+PlwHrKxi54="
+  # Own update channel: clients only trust releases "elvs-<version>-<n>" of this repository.
+  ELVS_UPDATE_REPO: ${{ github.repository }}
 
   # Toolchain versions, kept in sync with flutter-build.yml.
   RUST_VERSION: "1.75"
@@ -34,9 +48,67 @@ env:
   FLUTTER_MACOS_ARM_VERSION: "3.44.9"
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
   VCPKG_COMMIT_ID: "9e593bb18ea69cc5095e012465dcd675a822ed0d"
-  VERSION: "1.5.1"
 
 jobs:
+  # Determines version (from Cargo.toml), build number and release tag.
+  # Build number: from the tag "elvs-<version>-<n>", or for a manual release run the
+  # highest existing n for this version + 1. Builds without release use 0.
+  prepare:
+    name: prepare
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      build: ${{ steps.v.outputs.build }}
+      tag: ${{ steps.v.outputs.tag }}
+      release: ${{ steps.v.outputs.release }}
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Determine version, build number and tag
+        id: v
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_RELEASE: ${{ inputs.release }}
+        run: |
+          set -euo pipefail
+          version=$(sed -n 's/^version *= *"\([0-9.]*\)".*/\1/p' Cargo.toml | head -n 1)
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Cannot read version from Cargo.toml"; exit 1
+          fi
+          release=false; build=0; tag=""
+          if [[ "$GITHUB_REF" == refs/tags/elvs-* ]]; then
+            tag="${GITHUB_REF#refs/tags/}"
+            if [[ ! "$tag" =~ ^elvs-([0-9]+\.[0-9]+\.[0-9]+)-([0-9]+)$ ]]; then
+              echo "::error::Tag must look like elvs-$version-<n>, got $tag"; exit 1
+            fi
+            if [[ "${BASH_REMATCH[1]}" != "$version" ]]; then
+              echo "::error::Tag version ${BASH_REMATCH[1]} != Cargo.toml version $version"; exit 1
+            fi
+            build=$((10#${BASH_REMATCH[2]}))
+            if [[ "$build" -lt 1 ]]; then
+              echo "::error::Build number must be >= 1"; exit 1
+            fi
+            release=true
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$INPUT_RELEASE" == "true" ]]; then
+            existing=$( {
+              gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[].tag_name' || true
+              gh api --paginate "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/elvs-$version-" --jq '.[].ref' || true
+            } | sed 's#^refs/tags/##' | grep -E "^elvs-${version//./\\.}-[0-9]+$" | sed 's/.*-//' | sort -n | tail -n 1 || true)
+            build=$(( ${existing:-0} + 1 ))
+            tag="elvs-$version-$build"
+            release=true
+          fi
+          echo "version=$version build=$build tag=$tag release=$release"
+          {
+            echo "version=$version"
+            echo "build=$build"
+            echo "tag=$tag"
+            echo "release=$release"
+          } >> "$GITHUB_OUTPUT"
+
   generate-bridge:
     uses: ./.github/workflows/bridge.yml
 
@@ -51,9 +123,10 @@ jobs:
 
   build-for-windows-flutter:
     name: windows x86_64
-    needs: [build-RustDeskTempTopMostWindow, generate-bridge]
+    needs: [prepare, build-RustDeskTempTopMostWindow, generate-bridge]
     runs-on: windows-2022
     env:
+      ELVS_BUILD: ${{ needs.prepare.outputs.build }}
       ELVS_TARGET: x86_64-pc-windows-msvc
       ELVS_ARCH: x86_64
       ELVS_VCPKG_TRIPLET: x64-windows-static
@@ -211,7 +284,7 @@ jobs:
           python3 ./generate.py -f ../../rustdesk/ -o . -e ../../rustdesk/rustdesk.exe
           popd
           mkdir -p ./SignOutput
-          mv ./target/release/rustdesk-portable-packer.exe ./SignOutput/elvs-fernwartung-${{ env.VERSION }}-${{ env.ELVS_ARCH }}.exe
+          mv ./target/release/rustdesk-portable-packer.exe ./SignOutput/elvs-fernwartung-${{ env.ELVS_ARCH }}.exe
 
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce # v2
@@ -223,7 +296,7 @@ jobs:
           nuget restore msi.sln
           msbuild msi.sln -p:Configuration=Release -p:Platform=x64 /p:TargetVersion=Windows10
           $msi = Get-ChildItem ./Package/bin/*/Release/en-us/Package.msi | Select-Object -First 1
-          mv $msi.FullName ../../SignOutput/elvs-fernwartung-${{ env.VERSION }}-${{ env.ELVS_ARCH }}.msi
+          mv $msi.FullName ../../SignOutput/elvs-fernwartung-${{ env.ELVS_ARCH }}.msi
           sha256sum ../../SignOutput/elvs-fernwartung-*
 
       - name: Upload Windows installers
@@ -238,7 +311,9 @@ jobs:
   build-for-macOS:
     name: macos ${{ matrix.job.arch }}
     runs-on: ${{ matrix.job.os }}
-    needs: [generate-bridge]
+    needs: [prepare, generate-bridge]
+    env:
+      ELVS_BUILD: ${{ needs.prepare.outputs.build }}
     strategy:
       fail-fast: false
       matrix:
@@ -377,11 +452,103 @@ jobs:
           CREATE_DMG="$(command -v create-dmg)"
           CREATE_DMG="$(readlink -f "$CREATE_DMG")"
           sed -i -e 's/MAXIMUM_UNMOUNTING_ATTEMPTS=3/MAXIMUM_UNMOUNTING_ATTEMPTS=7/' "$CREATE_DMG"
-          create-dmg --volname "elvs Fernwartung" --icon "RustDesk.app" 200 190 --hide-extension "RustDesk.app" --window-size 800 400 --app-drop-link 600 185 elvs-fernwartung-${{ env.VERSION }}-${{ matrix.job.arch }}.dmg ./flutter/build/macos/Build/Products/Release/RustDesk.app
+          create-dmg --volname "elvs Fernwartung" --icon "RustDesk.app" 200 190 --hide-extension "RustDesk.app" --window-size 800 400 --app-drop-link 600 185 elvs-fernwartung-${{ matrix.job.arch }}.dmg ./flutter/build/macos/Build/Products/Release/RustDesk.app
 
       - name: Upload macOS dmg
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: elvs-fernwartung-macos-${{ matrix.job.arch }}
-          path: elvs-fernwartung-${{ env.VERSION }}-${{ matrix.job.arch }}.dmg
+          path: elvs-fernwartung-${{ matrix.job.arch }}.dmg
           if-no-files-found: error
+
+  # Publishes the release that installed clients update from (fixed asset names,
+  # update metadata rustdesk-update.json with sha256 and size of every installer).
+  release:
+    name: publish release
+    if: ${{ needs.prepare.outputs.release == 'true' }}
+    needs: [prepare, build-for-windows-flutter, build-for-macOS]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ needs.prepare.outputs.tag }}
+      APP_VERSION: ${{ needs.prepare.outputs.version }}
+      APP_BUILD: ${{ needs.prepare.outputs.build }}
+    steps:
+      - name: Download installers
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: elvs-fernwartung-*
+          merge-multiple: true
+          path: dist
+
+      - name: Write update metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist
+          ls -l
+          python3 - <<'PY'
+          import datetime, hashlib, json, os
+          repo = os.environ["GITHUB_REPOSITORY"]
+          tag = os.environ["TAG"]
+          prefix = f"https://github.com/{repo}/releases/download/{tag}/"
+          files = [
+              ("windows", "x86_64", "exe", "elvs-fernwartung-x86_64.exe"),
+              ("windows", "x86_64", "msi", "elvs-fernwartung-x86_64.msi"),
+              ("macos", "x86_64", "dmg", "elvs-fernwartung-x86_64.dmg"),
+              ("macos", "aarch64", "dmg", "elvs-fernwartung-aarch64.dmg"),
+          ]
+          artifacts = []
+          for platform, arch, fmt, name in files:
+              with open(name, "rb") as f:
+                  data = f.read()
+              artifacts.append({
+                  "platform": platform, "arch": arch, "format": fmt,
+                  "url": prefix + name, "file_name": name,
+                  "size": len(data), "sha256": hashlib.sha256(data).hexdigest(),
+              })
+          metadata = {
+              "schema_version": 1,
+              "app": "rustdesk",
+              "package_id": "rustdesk",
+              "version": os.environ["APP_VERSION"],
+              "release_id": tag,
+              "published_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+              "signature_key_id": "elvs-unsigned",
+              "elvs_build": int(os.environ["APP_BUILD"]),
+              "artifacts": artifacts,
+          }
+          with open("rustdesk-update.json", "w") as f:
+              json.dump(metadata, f, indent=2)
+          PY
+          cat rustdesk-update.json
+          sha256sum elvs-fernwartung-* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Create release
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > notes.md <<EOF
+          elvs Fernwartung $APP_VERSION, Build $APP_BUILD (Commit $GITHUB_SHA).
+
+          Installierte Clients mit aktiviertem "Auto update" spielen dieses Update selbst ein.
+
+          | Datei | System |
+          |---|---|
+          | elvs-fernwartung-x86_64.msi | Windows 64-bit (MSI-Installer) |
+          | elvs-fernwartung-x86_64.exe | Windows 64-bit (Programm / Installer) |
+          | elvs-fernwartung-aarch64.dmg | macOS Apple Silicon (M1 und neuer) |
+          | elvs-fernwartung-x86_64.dmg | macOS Intel |
+          EOF
+          # Create as draft first, so "latest" never points to a release without assets.
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --draft --title "elvs Fernwartung $APP_VERSION (Build $APP_BUILD)" --notes-file notes.md \
+            dist/elvs-fernwartung-x86_64.msi dist/elvs-fernwartung-x86_64.exe \
+            dist/elvs-fernwartung-x86_64.dmg dist/elvs-fernwartung-aarch64.dmg \
+            dist/rustdesk-update.json dist/SHA256SUMS.txt
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json url,assets --jq '.url, (.assets[].name)'
+
