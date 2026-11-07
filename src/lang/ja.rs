@@ -7,7 +7,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("Password", "パスワード"),
         ("Ready", "準備完了"),
         ("Established", "接続完了"),
-        ("connecting_status", "RustDesk ネットワークに接続中..."),
+        ("connecting_status", "Elvs IT Support Management ネットワークに接続中..."),
         ("Enable service", "サービスを有効化する"),
         ("Start service", "サービスを開始"),
         ("Service is running", "サービスが実行されています"),

@@ -7,7 +7,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("Password", "Heslo"),
         ("Ready", "Pripravené"),
         ("Established", "Nadviazané"),
-        ("connecting_status", "Pripájam sa na RustDesk server..."),
+        ("connecting_status", "Pripájam sa na Elvs IT Support Management server..."),
         ("Enable service", "Povoliť službu"),
         ("Start service", "Spustiť službu"),
         ("Service is running", "Služba je aktívna"),

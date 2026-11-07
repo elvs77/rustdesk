@@ -7,7 +7,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("Password", "Parol"),
         ("Ready", "Hazır"),
         ("Established", "Quruldu"),
-        ("connecting_status", "RustDesk şəbəkəsinə qoşulur..."),
+        ("connecting_status", "Elvs IT Support Management şəbəkəsinə qoşulur..."),
         ("Enable service", "Xidməti aktivləşdir"),
         ("Start service", "Xidməti başlat"),
         ("Service is running", "Xidmət işləyir"),
