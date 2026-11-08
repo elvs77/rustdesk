@@ -2024,9 +2024,11 @@ fn elvs_spawn_ws_watchdog() {
                 }
             } else if auto && last_back_try.elapsed() >= ELVS_WS_BACK_EVERY {
                 last_back_try = Instant::now();
-                if elvs_tcp_reachable(&host, RENDEZVOUS_PORT as u16).await {
+                // UDP, not TCP: a firewall that lets TCP 21116 through but drops UDP would
+                // otherwise send the device back every hour, only to go offline again.
+                if elvs_udp_reachable(&host).await {
                     log::info!(
-                        "elvs: port {} reachable again, back to the normal path",
+                        "elvs: UDP {} answers again, back to the normal path",
                         RENDEZVOUS_PORT
                     );
                     Config::set_option(OPTION_ALLOW_WEBSOCKET.to_owned(), "".to_owned());
@@ -2053,6 +2055,43 @@ fn elvs_server_host() -> Option<String> {
     } else {
         Some(host)
     }
+}
+
+/// True when the rendezvous server answers on UDP 21116. Sends a RegisterPeer for an id
+/// no device uses: the server answers it (request_pk) without storing anything, and the
+/// address of this device's real registration stays untouched.
+async fn elvs_udp_reachable(host: &str) -> bool {
+    let Ok(sock) = tokio::net::UdpSocket::bind("0.0.0.0:0").await else {
+        return false;
+    };
+    if sock.connect((host, RENDEZVOUS_PORT as u16)).await.is_err() {
+        return false;
+    }
+    let mut msg_out = Message::new();
+    msg_out.set_register_peer(RegisterPeer {
+        id: "elvs-udp-probe".to_owned(),
+        ..Default::default()
+    });
+    let Ok(bytes) = msg_out.write_to_bytes() else {
+        return false;
+    };
+    let mut buf = [0u8; 1024];
+    for _ in 0..3 {
+        if sock.send(&bytes).await.is_err() {
+            return false;
+        }
+        if let Ok(Ok(n)) =
+            tokio::time::timeout(Duration::from_secs(2), sock.recv(&mut buf)).await
+        {
+            if Message::parse_from_bytes(&buf[..n])
+                .map(|m| m.has_register_peer_response())
+                .unwrap_or(false)
+            {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 async fn elvs_tcp_reachable(host: &str, port: u16) -> bool {

@@ -1091,12 +1091,12 @@ pub(crate) fn elvs_no_account_token() -> bool {
 }
 
 /// elvs: automatic WebSocket fallback (see elvs_spawn_ws_watchdog in rendezvous_mediator.rs).
-/// Switched off (build 6): the open-source hbbs accepts RegisterPeer only over UDP, a
-/// device registering over WebSocket is dropped at once. Enable again only together
-/// with an own hbbs that accepts the registration over TCP/WebSocket.
+/// Was off in build 6 because the open-source hbbs accepts RegisterPeer only over UDP.
+/// On again since build 7: support.elvs.it runs the elvs hbbs (branch elvs-hbbs), which
+/// accepts the registration over TCP/WebSocket and keeps that connection open.
 #[inline]
 pub(crate) fn elvs_ws_fallback_enabled() -> bool {
-    false
+    true
 }
 
 /// GitHub (owner, repository) whose releases are trusted for updates.
