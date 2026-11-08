@@ -1,0 +1,53 @@
+# elvs: builds hbbs/hbbr (static, x86_64 musl) with device registration over
+# TCP/WebSocket, runs the end-to-end test and keeps the binaries as artifact.
+name: elvs hbbs
+on:
+  push:
+    branches: [elvs-hbbs]
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Publish as GitHub release"
+        type: boolean
+        default: false
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Toolchain
+        run: |
+          rustup toolchain install 1.90 --profile minimal --target x86_64-unknown-linux-musl
+          rustup default 1.90
+          curl -sSL https://github.com/cross-rs/cross/releases/download/v0.2.5/cross-x86_64-unknown-linux-gnu.tar.gz | tar xz -C ~/.cargo/bin
+      - name: Build (static musl, like the official image)
+        run: cross build --release --target x86_64-unknown-linux-musl --bin hbbs --bin hbbr
+      - name: End-to-end test (registration over WebSocket)
+        run: |
+          python3 -m pip install --quiet protobuf==4.25.3 grpcio-tools==1.62.1 websockets==12.0
+          mkdir -p elvs/gen
+          python3 -m grpc_tools.protoc -I libs/hbb_common/protos --python_out=elvs/gen rendezvous.proto
+          python3 elvs/ws_test.py target/x86_64-unknown-linux-musl/release/hbbs
+      - name: Package
+        run: |
+          mkdir out
+          cp target/x86_64-unknown-linux-musl/release/hbbs target/x86_64-unknown-linux-musl/release/hbbr out/
+          file out/hbbs
+          cd out && sha256sum hbbs hbbr > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hbbs-elvs-x86_64-musl
+          path: out/
+      - name: Release
+        if: ${{ inputs.release }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="hbbs-elvs-1.1.16-${GITHUB_RUN_NUMBER}"
+          gh release create "$TAG" out/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "elvs hbbs ${TAG#hbbs-elvs-}" \
+            --notes "RustDesk-Server 1.1.16 (hbbs) mit Geraete-Anmeldung ueber TCP/WebSocket. Nur fuer support.elvs.it. Ersetzt /usr/bin/hbbs im offiziellen Image."
