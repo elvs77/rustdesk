@@ -1979,6 +1979,14 @@ const ELVS_WS_BACK_EVERY: Duration = Duration::from_secs(3600);
 
 fn elvs_spawn_ws_watchdog() {
     if !crate::common::elvs_ws_fallback_enabled() {
+        // Build 5 may have switched this device to WebSocket on its own. While the fallback is
+        // off, undo that once, so the device registers over the normal path again.
+        if Config::get_option(ELVS_WS_AUTO) == "Y" {
+            log::info!("elvs: WebSocket fallback is off, back to the normal path");
+            Config::set_option(OPTION_ALLOW_WEBSOCKET.to_owned(), "".to_owned());
+            Config::set_option(ELVS_WS_AUTO.to_owned(), "".to_owned());
+            RendezvousMediator::restart();
+        }
         return;
     }
     tokio::spawn(async move {
