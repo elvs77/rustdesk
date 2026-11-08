@@ -36,7 +36,7 @@ env:
   # Server defaults compiled into the client (public values, read via option_env! in src/common.rs).
   RENDEZVOUS_SERVER: "support.elvs.it"
   RELAY_SERVER: "support.elvs.it:21117"
-  API_SERVER: "http://support.elvs.it:21114"
+  API_SERVER: "https://support.elvs.it"
   RS_PUB_KEY: "6hSa0cQbMIhdBeHkGski5D5sB78JE1gD+PlwHrKxi54="
   # Own update channel: clients only trust releases "elvs-<version>-<n>" of this repository.
   ELVS_UPDATE_REPO: ${{ github.repository }}

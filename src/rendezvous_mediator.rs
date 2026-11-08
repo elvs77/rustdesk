@@ -11,6 +11,7 @@ use std::{
 
 use uuid::Uuid;
 
+use base::config::keys::*;
 use hbb_common::{
     allow_err,
     anyhow::{self, bail},
@@ -30,7 +31,6 @@ use hbb_common::{
     webrtc::WebRTCStream,
     AddrMangle, IntoTargetAddr, ResultType, Stream, TargetAddr,
 };
-use base::config::keys::*;
 
 use crate::{
     check_port,
@@ -317,6 +317,7 @@ impl RendezvousMediator {
             }
         }
         crate::hbbs_http::sync::start();
+        elvs_spawn_ws_watchdog();
         #[cfg(target_os = "windows")]
         if crate::platform::is_installed() && crate::is_server() {
             crate::updater::start_auto_update();
@@ -948,7 +949,9 @@ impl RendezvousMediator {
         let stream_for_remote_ice = stream.clone();
         tokio::spawn(async move {
             while let Some(candidate) = remote_ice_rx.recv().await {
-                if let Err(err) = stream_for_remote_ice.add_remote_ice_candidate(&candidate).await
+                if let Err(err) = stream_for_remote_ice
+                    .add_remote_ice_candidate(&candidate)
+                    .await
                 {
                     if let Some(n) = REJECTED_REMOTE_ICE_LOG.due() {
                         log::warn!(
@@ -1779,8 +1782,8 @@ impl Drop for CheckIfResendPk {
 #[cfg(test)]
 mod tests {
     use super::{
-        connection_meta, mpsc, tokio, wait_for_retry, AnswererSlot, Duration, IceRoute,
-        Instant, IntoTargetAddr, Ordering, PunchHoleSent, RendezvousMediator, RendezvousMessage,
+        connection_meta, mpsc, tokio, wait_for_retry, AnswererSlot, Duration, IceRoute, Instant,
+        IntoTargetAddr, Ordering, PunchHoleSent, RendezvousMediator, RendezvousMessage,
         CONNECT_TIMEOUT, MANUAL_RESTARTED, MANUAL_RESTART_NOTIFY, MAX_WEBRTC_ANSWERERS,
         SHOULD_EXIT, TCP_PUNCHES, UDP_PUNCHES,
     };
@@ -1959,4 +1962,98 @@ mod tests {
             past_again
         ));
     }
+}
+
+// elvs: automatic WebSocket fallback for the controlled side.
+//
+// Normally the client registers with the own server over the high ports (UDP/TCP 21116). Some
+// networks (company firewalls, guest WiFi) block those ports. If this device has not been online
+// for ELVS_WS_OFFLINE and the server answers on TCP 443, the client switches itself to WebSocket
+// (wss://<server>/ws/id and /ws/relay on 443, behind the reverse proxy on the server) and marks the
+// switch with "elvs-ws-auto". About once an hour it checks whether TCP 21116 is reachable again
+// and then switches back to the normal path. A WebSocket setting the user made by hand
+// (allow-websocket without the marker) is never touched.
+const ELVS_WS_AUTO: &str = "elvs-ws-auto";
+const ELVS_WS_OFFLINE: Duration = Duration::from_secs(90);
+const ELVS_WS_BACK_EVERY: Duration = Duration::from_secs(3600);
+
+fn elvs_spawn_ws_watchdog() {
+    if !crate::common::elvs_ws_fallback_enabled() {
+        return;
+    }
+    tokio::spawn(async move {
+        let mut offline_since: Option<Instant> = None;
+        let mut last_back_try = Instant::now();
+        loop {
+            sleep(15.).await;
+            if config::is_outgoing_only()
+                || config::option2bool("stop-service", &Config::get_option("stop-service"))
+            {
+                offline_since = None;
+                continue;
+            }
+            let Some(host) = elvs_server_host() else {
+                continue;
+            };
+            let auto = Config::get_option(ELVS_WS_AUTO) == "Y";
+            if config::get_online_state() > 0 {
+                offline_since = None;
+            } else if offline_since.is_none() {
+                offline_since = Some(Instant::now());
+            }
+            if !use_ws() {
+                let long_offline = offline_since.map_or(false, |t| t.elapsed() >= ELVS_WS_OFFLINE);
+                if long_offline && elvs_tcp_reachable(&host, 443).await {
+                    log::info!(
+                        "elvs: no registration for {:?}, switching to WebSocket (443)",
+                        ELVS_WS_OFFLINE
+                    );
+                    Config::set_option(ELVS_WS_AUTO.to_owned(), "Y".to_owned());
+                    Config::set_option(OPTION_ALLOW_WEBSOCKET.to_owned(), "Y".to_owned());
+                    offline_since = None;
+                    last_back_try = Instant::now();
+                    RendezvousMediator::restart();
+                }
+            } else if auto && last_back_try.elapsed() >= ELVS_WS_BACK_EVERY {
+                last_back_try = Instant::now();
+                if elvs_tcp_reachable(&host, RENDEZVOUS_PORT as u16).await {
+                    log::info!(
+                        "elvs: port {} reachable again, back to the normal path",
+                        RENDEZVOUS_PORT
+                    );
+                    Config::set_option(OPTION_ALLOW_WEBSOCKET.to_owned(), "".to_owned());
+                    Config::set_option(ELVS_WS_AUTO.to_owned(), "".to_owned());
+                    offline_since = None;
+                    RendezvousMediator::restart();
+                }
+            }
+        }
+    });
+}
+
+/// Host name of the first rendezvous server, without port.
+fn elvs_server_host() -> Option<String> {
+    let s = Config::get_rendezvous_servers().into_iter().next()?;
+    let s = s.trim();
+    let host = if s.starts_with('[') {
+        s.split(']').next()?.trim_start_matches('[').to_owned()
+    } else {
+        s.split(':').next()?.to_owned()
+    };
+    if host.is_empty() {
+        None
+    } else {
+        Some(host)
+    }
+}
+
+async fn elvs_tcp_reachable(host: &str, port: u16) -> bool {
+    matches!(
+        tokio::time::timeout(
+            Duration::from_secs(5),
+            tokio::net::TcpStream::connect((host, port))
+        )
+        .await,
+        Ok(Ok(_))
+    )
 }

@@ -1090,6 +1090,12 @@ pub(crate) fn elvs_no_account_token() -> bool {
     is_elvs_update_channel()
 }
 
+/// elvs: automatic WebSocket fallback (see elvs_spawn_ws_watchdog in rendezvous_mediator.rs).
+#[inline]
+pub(crate) fn elvs_ws_fallback_enabled() -> bool {
+    is_elvs_update_channel()
+}
+
 /// GitHub (owner, repository) whose releases are trusted for updates.
 pub(crate) fn update_repo() -> (&'static str, &'static str) {
     match option_env!("ELVS_UPDATE_REPO") {
@@ -2674,6 +2680,18 @@ fn apply_build_time_server_defaults() {
             .write()
             .unwrap()
             .insert(keys::OPTION_ALLOW_AUTO_UPDATE.to_owned(), "N".to_owned());
+        // elvs: the WebSocket path is wss:// only when the api-server option starts with https
+        // (see check_ws in hbb_common). Older installs may still have the Pro value
+        // "http://support.elvs.it:21114" stored, so the built-in value always wins.
+        if let Some(api) = option_env!("API_SERVER")
+            .map(str::trim)
+            .filter(|v| v.starts_with("https://"))
+        {
+            config::OVERWRITE_SETTINGS
+                .write()
+                .unwrap()
+                .insert(keys::OPTION_API_SERVER.to_owned(), api.to_owned());
+        }
         config::OVERWRITE_LOCAL_SETTINGS
             .write()
             .unwrap()
