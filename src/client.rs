@@ -388,6 +388,11 @@ impl Client {
         (i32, String),
     )> {
         debug_assert!(peer == interface.get_id());
+        // elvs: the own server is the open-source hbbs without accounts. A stored login token
+        // would switch the client to the "secure TCP" path, which waits for a key exchange the
+        // open-source hbbs never sends ("Failed to secure tcp: deadline has elapsed"). So the
+        // elvs build never sends an account token to the rendezvous server.
+        let token = if crate::common::elvs_no_account_token() { "" } else { token };
         interface.update_direct(None);
         interface.update_received(false);
         match Self::_start(peer, key, token, conn_type, interface.clone()).await {

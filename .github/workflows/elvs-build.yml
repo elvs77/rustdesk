@@ -536,7 +536,11 @@ jobs:
           cat > notes.md <<EOF
           elvs Fernwartung $APP_VERSION, Build $APP_BUILD (Commit $GITHUB_SHA).
 
-          Ab diesem Build ist das automatische Update abgeschaltet (bis Updates mit einem eigenen
+          Neu in Build 4: Der Client schickt kein Anmelde-Token mehr an den Server. Damit ist der
+          Fehler "Failed to secure tcp: deadline has elapsed" behoben, der nach einer Anmeldung im
+          Client auftrat (der eigene Server hat keine Konten).
+
+          Das automatische Update ist seit Build 3 abgeschaltet (bis Updates mit einem eigenen
           Schlüssel signiert sind). Aktualisieren: passende Datei unten herunterladen und
           ausführen (Windows: MSI als Administrator installieren, macOS: DMG öffnen und die App
           in "Programme" ersetzen). Ältere Clients 1.5.1-1/-2 holen sich dieses Update noch

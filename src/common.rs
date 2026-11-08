@@ -1083,6 +1083,13 @@ pub(crate) fn elvs_updates_disabled() -> bool {
     is_elvs_update_channel()
 }
 
+/// elvs: the own rendezvous server has no accounts (open-source hbbs). Never pass a login
+/// token to it, otherwise the client waits for a key exchange that never comes.
+#[inline]
+pub(crate) fn elvs_no_account_token() -> bool {
+    is_elvs_update_channel()
+}
+
 /// GitHub (owner, repository) whose releases are trusted for updates.
 pub(crate) fn update_repo() -> (&'static str, &'static str) {
     match option_env!("ELVS_UPDATE_REPO") {
