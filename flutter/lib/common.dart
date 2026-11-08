@@ -4108,9 +4108,16 @@ void earlyAssert() {
   assert('\1' == '1');
 }
 
+/// elvs: true when updates are disabled in this build (no update check, no
+/// auto update, no update button). See elvs_updates_disabled() in src/common.rs.
+bool isElvsUpdatesDisabled() {
+  if (isWeb) return false;
+  return bind.mainGetCommonSync(key: 'elvs-updates-disabled') == 'true';
+}
+
 void checkUpdate() {
   if (!isWeb) {
-    if (!bind.isCustomClient()) {
+    if (!bind.isCustomClient() && !isElvsUpdatesDisabled()) {
       platformFFI.registerEventHandler(
           kCheckSoftwareUpdateFinish, kCheckSoftwareUpdateFinish,
           (Map<String, dynamic> evt) async {

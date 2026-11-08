@@ -6,8 +6,10 @@
 # - Run workflow manually with "release" = true, or push a tag "elvs-<version>-<n>":
 #   after a successful build a GitHub release "elvs-<version>-<n>" is published in this
 #   repository with fixed asset names and the update metadata (rustdesk-update.json).
-#   Installed clients check the latest release of this repository (own update channel,
-#   see ELVS_UPDATE_REPO in src/common.rs) and update themselves.
+#   Clients 1.5.1-1/-2 still read rustdesk-update.json of the latest release and update
+#   themselves (see ELVS_UPDATE_REPO in src/common.rs). From 1.5.1-3 on, updates are
+#   disabled in the client (elvs_updates_disabled) until the metadata is signed with an
+#   own key; those clients are updated manually with the MSI/DMG from the release page.
 name: elvs build
 
 on:
@@ -534,7 +536,11 @@ jobs:
           cat > notes.md <<EOF
           elvs Fernwartung $APP_VERSION, Build $APP_BUILD (Commit $GITHUB_SHA).
 
-          Installierte Clients mit aktiviertem "Auto update" spielen dieses Update selbst ein.
+          Ab diesem Build ist das automatische Update abgeschaltet (bis Updates mit einem eigenen
+          Schlüssel signiert sind). Aktualisieren: passende Datei unten herunterladen und
+          ausführen (Windows: MSI als Administrator installieren, macOS: DMG öffnen und die App
+          in "Programme" ersetzen). Ältere Clients 1.5.1-1/-2 holen sich dieses Update noch
+          einmal selbst; danach ist auch bei ihnen das automatische Update aus.
 
           | Datei | System |
           |---|---|

@@ -91,6 +91,9 @@ pub fn verified_update_artifact_for_release_page_url(
 pub fn verified_update_artifact_for_download_url(
     download_url: &str,
 ) -> ResultType<VerifiedUpdateArtifact> {
+    if crate::common::elvs_updates_disabled() {
+        bail!("Updates are disabled in this build");
+    }
     VERIFIED_UPDATE_ARTIFACT
         .lock()
         .unwrap()
@@ -104,6 +107,11 @@ pub(super) fn verified_update_artifact_from_release_page_url(
     update_url: &str,
     query: &UpdateArtifactQuery<'_>,
 ) -> ResultType<VerifiedUpdateArtifact> {
+    // elvs: no update artifact is ever trusted while updates are disabled, so neither
+    // the UI ("download-new-version", "update-me") nor a service can install one.
+    if crate::common::elvs_updates_disabled() {
+        bail!("Updates are disabled in this build");
+    }
     let release_id = release_id_from_update_url(update_url)?;
     let display_version = display_version_from_release_id(&release_id)?;
     let (repo_owner, repo_name) = crate::common::update_repo();

@@ -2763,6 +2763,9 @@ pub fn main_get_printer_names() -> SyncReturn<String> {
 }
 
 pub fn main_get_common(key: String) -> String {
+    if key == "elvs-updates-disabled" {
+        return crate::common::elvs_updates_disabled().to_string();
+    }
     if key == "is-printer-installed" {
         #[cfg(target_os = "windows")]
         {

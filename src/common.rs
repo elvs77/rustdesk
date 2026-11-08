@@ -1071,6 +1071,18 @@ pub(crate) fn is_elvs_update_channel() -> bool {
     option_env!("ELVS_UPDATE_REPO").is_some()
 }
 
+/// elvs: updates over the own channel are switched off completely until the update
+/// metadata is signed with an own key. Without a signature, anyone who takes over the
+/// GitHub account could ship code to every installed client through the channel.
+/// While this returns true, no process checks for, downloads or installs updates:
+/// no version check, no Windows service MSI update, no macOS root update, no update
+/// button in the UI. A stored "allow-auto-update" = "Y" from older configs is ignored.
+/// Updates are installed manually from the release page.
+#[inline]
+pub(crate) fn elvs_updates_disabled() -> bool {
+    is_elvs_update_channel()
+}
+
 /// GitHub (owner, repository) whose releases are trusted for updates.
 pub(crate) fn update_repo() -> (&'static str, &'static str) {
     match option_env!("ELVS_UPDATE_REPO") {
@@ -1145,7 +1157,7 @@ async fn elvs_latest_release_page_url() -> ResultType<String> {
 }
 
 pub fn check_software_update() {
-    if is_custom_client() {
+    if is_custom_client() || elvs_updates_disabled() {
         return;
     }
     let opt = LocalConfig::get_option(keys::OPTION_ENABLE_CHECK_UPDATE);
@@ -1283,6 +1295,12 @@ fn process_software_update_release_page_url(response_url: String) -> ResultType<
 // Because the url is always `https://api.rustdesk.com/version/latest`.
 #[tokio::main(flavor = "current_thread")]
 pub async fn do_check_software_update() -> hbb_common::ResultType<()> {
+    if elvs_updates_disabled() {
+        // elvs: no update check at all (see elvs_updates_disabled), no network request.
+        clear_software_update_url();
+        log::info!("Software update check is disabled in this build.");
+        return Ok(());
+    }
     if is_elvs_update_channel() {
         let result = match elvs_latest_release_page_url().await {
             Ok(url) => process_software_update_release_page_url(url),
@@ -2640,12 +2658,19 @@ fn apply_build_time_server_defaults() {
             settings.entry(k.to_owned()).or_insert_with(|| v.to_owned());
         }
     }
-    // elvs: silent auto update is on by default for builds with the own update channel.
-    // The user can still switch it off ("N" is stored and takes precedence).
-    if is_elvs_update_channel() {
-        settings
-            .entry(keys::OPTION_ALLOW_AUTO_UPDATE.to_owned())
-            .or_insert_with(|| "Y".to_owned());
+    drop(settings);
+    // elvs: updates are disabled (see elvs_updates_disabled). Force both options off,
+    // so a stored "Y" from older configs (auto update was on by default in 1.5.1-1/-2)
+    // has no effect and the options cannot be switched on again.
+    if elvs_updates_disabled() {
+        config::OVERWRITE_SETTINGS
+            .write()
+            .unwrap()
+            .insert(keys::OPTION_ALLOW_AUTO_UPDATE.to_owned(), "N".to_owned());
+        config::OVERWRITE_LOCAL_SETTINGS
+            .write()
+            .unwrap()
+            .insert(keys::OPTION_ENABLE_CHECK_UPDATE.to_owned(), "N".to_owned());
     }
 }
 
