@@ -26,7 +26,8 @@ Nur Python-Standardbibliothek. Start: python3 elvs_api.py --data /var/lib/elvs-a
 import argparse, hmac, ipaddress, json, os, re, secrets, sys, threading, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-VERSION = "1.1"
+VERSION = "1.2"
+SELBSTTEST = "/var/lib/elvs-selbsttest/ergebnis.json"
 FRIST_STUNDEN = 48  # nicht zugeordnete Geräte fallen nach 48 h ganz heraus
 MAX_BODY = 256 * 1024
 MAX_GERAETE = 5000
@@ -187,6 +188,14 @@ class Handler(BaseHTTPRequestHandler):
                 time.sleep(1)
                 return self.antwort(401, '{"error":"Nicht berechtigt"}')
             return self.antwort(200, json.dumps({"version": VERSION, "stand": jetzt(), "geraete": self.server.ablage.liste()}, ensure_ascii=False))
+        if self.path.split("?")[0] == "/api/elvs/selbsttest":
+            if not self.berechtigt():
+                return self.antwort(401, '{"error":"Nicht berechtigt"}')
+            try:
+                with open(SELBSTTEST, encoding="utf-8") as f:
+                    return self.antwort(200, f.read(65536))
+            except FileNotFoundError:
+                return self.antwort(200, '{"gesamt":"","pruefungen":[]}')
         if self.path == "/api/elvs/ok":
             return self.antwort(200, '{"ok":true}')
         return self.antwort(404, '{"error":"Nicht unterstützt"}')

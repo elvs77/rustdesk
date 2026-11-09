@@ -1,0 +1,7 @@
+[Unit]
+Description=elvs Selbsttest Fernwartungs-Server
+After=docker.service nginx.service elvs-api.service
+
+[Service]
+Type=oneshot
+ExecStart=/srv/rustdesk/selbsttest/selbsttest.sh

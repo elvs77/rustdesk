@@ -1,0 +1,6 @@
+c07f8f5a57d73809a30c69291a6965d7516559c28b1b39498878c0d7d3bbd423  /srv/rustdesk/bin/hbbs-elvs
+e272c2e006c238fd281b9b90c8cbdd8d452724a5a677d78f59eafa6375dff34f  /srv/rustdesk/elvs-api/elvs_api.py
+5aeb4cc5a423e9938d6b961bbffc0d4d376cb2bb73e85acb8d8373dd9f941207  /etc/systemd/system/elvs-api.service
+28c14664c9a21d3a0e7edbd2d14467d33e45b2e5657ea13ba3fd6d36f63d00ed  /srv/rustdesk/selbsttest/selbsttest.sh
+8d353350b7d2f043f629bf2238e51ad9a4c00a32dbd6a11489b62091f268e975  /etc/systemd/system/elvs-selbsttest.service
+a919ebd3d6d0f2174b88fa479298238b8d2f4679d8ca793dc85602ece624d84f  /etc/systemd/system/elvs-selbsttest.timer

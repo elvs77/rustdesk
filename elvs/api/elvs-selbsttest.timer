@@ -1,0 +1,10 @@
+[Unit]
+Description=elvs Selbsttest Fernwartungs-Server (taeglich und nach dem Start)
+
+[Timer]
+OnBootSec=5min
+OnCalendar=*-*-* 06:15:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
