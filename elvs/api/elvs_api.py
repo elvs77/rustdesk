@@ -8,6 +8,11 @@ Betriebssystem, Prozessor, Arbeitsspeicher, angemeldeter Benutzer, Version) und
 merkt es sich je Geräte-ID. Mehr nicht: keine Anmeldung, kein Adressbuch, keine
 Steuerung der Clients.
 
+Datensparsam (1.1): Nur Geräte, die in der App einem Kunden oder als eigener Rechner
+zugeordnet sind (die App schickt ihre IDs mit POST /api/elvs/behalten), bleiben stehen.
+Alle anderen werden 48 Stunden nach ihrer ersten Meldung komplett gelöscht – samt
+Verbindungen. Meldet sich so ein Rechner danach wieder, beginnt er von vorn.
+
 Die Büro-App holt die Liste mit GET /api/elvs/geraete und dem Schlüssel aus der Datei
 token (Kopfzeile "Authorization: Bearer <token>"). Zuordnen zu Kunden passiert nur in
 der App.
@@ -21,8 +26,9 @@ Nur Python-Standardbibliothek. Start: python3 elvs_api.py --data /var/lib/elvs-a
 import argparse, hmac, ipaddress, json, os, re, secrets, sys, threading, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-VERSION = "1.0"
-MAX_BODY = 64 * 1024
+VERSION = "1.1"
+FRIST_STUNDEN = 48  # nicht zugeordnete Geräte fallen nach 48 h ganz heraus
+MAX_BODY = 256 * 1024
 MAX_GERAETE = 5000
 MAX_VERBINDUNGEN = 30
 ID_RE = re.compile(r"^[0-9A-Za-z_-]{1,40}$")
@@ -45,23 +51,46 @@ class Ablage:
         self.datei = os.path.join(ordner, "geraete.json")
         self.lock = threading.Lock()
         self.geaendert = False
+        self.behalten = set()
         try:
             with open(self.datei, encoding="utf-8") as f:
-                self.geraete = json.load(f).get("geraete", {})
+                d = json.load(f)
+                self.geraete = d.get("geraete", {})
+                self.behalten = set(d.get("behalten", []))
         except FileNotFoundError:
             self.geraete = {}
         threading.Thread(target=self._schreiber, daemon=True).start()
 
     def _schreiber(self):
+        n = 0
         while True:
             time.sleep(5)
+            n += 1
+            if n % 60 == 1:  # alle 5 Minuten
+                self.aufraeumen()
             self.speichern()
+
+    def aufraeumen(self, jetzt_ts=None):
+        """Nicht zugeordnete Geräte 48 h nach der ersten Meldung löschen."""
+        grenze = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime((jetzt_ts or time.time()) - FRIST_STUNDEN * 3600))
+        with self.lock:
+            weg = [i for i, g in self.geraete.items() if i not in self.behalten and g.get("erstmals", "") < grenze]
+            for i in weg:
+                del self.geraete[i]
+            if weg:
+                self.geaendert = True
+            return len(weg)
+
+    def behalten_setzen(self, ids):
+        with self.lock:
+            self.behalten = set(ids)
+            self.geaendert = True
 
     def speichern(self):
         with self.lock:
             if not self.geaendert:
                 return
-            daten = json.dumps({"version": VERSION, "stand": jetzt(), "geraete": self.geraete}, ensure_ascii=False)
+            daten = json.dumps({"version": VERSION, "stand": jetzt(), "geraete": self.geraete, "behalten": sorted(self.behalten)}, ensure_ascii=False)
             self.geaendert = False
         tmp = self.datei + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
@@ -101,7 +130,7 @@ class Ablage:
 
     def liste(self):
         with self.lock:
-            return [dict(g) for g in self.geraete.values()]
+            return [dict(g, behalten=g["id"] in self.behalten) for g in self.geraete.values()]
 
 
 def client_ip(h):
@@ -162,8 +191,24 @@ class Handler(BaseHTTPRequestHandler):
             return self.antwort(200, '{"ok":true}')
         return self.antwort(404, '{"error":"Nicht unterstützt"}')
 
+    def berechtigt(self):
+        tok = (self.headers.get("Authorization") or "")
+        ok = ueber_nginx(self) and tok.startswith("Bearer ") and hmac.compare_digest(tok[7:].strip(), self.server.token)
+        if not ok:
+            time.sleep(1)
+        return ok
+
     def do_POST(self):
         pfad = self.path.split("?")[0]
+        if pfad == "/api/elvs/behalten":
+            if not self.berechtigt():
+                return self.antwort(401, '{"error":"Nicht berechtigt"}')
+            v = self.body_json()
+            ids = (v or {}).get("ids")
+            if not isinstance(ids, list) or len(ids) > MAX_GERAETE or not all(isinstance(i, str) and ID_RE.match(i) for i in ids):
+                return self.antwort(400, '{"error":"Ungültige Liste"}')
+            self.server.ablage.behalten_setzen(ids)
+            return self.antwort(200, json.dumps({"ok": True, "behalten": len(ids), "geloescht": self.server.ablage.aufraeumen()}))
         weg = "neu" if ueber_nginx(self) else "alt"
         if pfad == "/api/sysinfo_ver":
             # Version unserer Ablage: gleich = Client muss unveränderte Daten nicht neu schicken
