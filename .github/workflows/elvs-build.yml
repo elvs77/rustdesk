@@ -467,7 +467,8 @@ jobs:
   # update metadata rustdesk-update.json with sha256 and size of every installer).
   release:
     name: publish release
-    if: ${{ needs.prepare.outputs.release == 'true' }}
+    # Windows is required; a missing macOS runner (cancelled job) must not hold back the Windows release.
+    if: ${{ always() && needs.prepare.outputs.release == 'true' && needs.build-for-windows-flutter.result == 'success' }}
     needs: [prepare, build-for-windows-flutter, build-for-macOS]
     runs-on: ubuntu-latest
     permissions:
@@ -504,6 +505,9 @@ jobs:
           ]
           artifacts = []
           for platform, arch, fmt, name in files:
+              if not os.path.exists(name) and platform == "macos":
+                  print("fehlt (macOS-Build nicht fertig):", name)
+                  continue
               with open(name, "rb") as f:
                   data = f.read()
               artifacts.append({
@@ -565,8 +569,7 @@ jobs:
           # Create as draft first, so "latest" never points to a release without assets.
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --draft --title "elvs Fernwartung $APP_VERSION (Build $APP_BUILD)" --notes-file notes.md \
-            dist/elvs-fernwartung-x86_64.msi dist/elvs-fernwartung-x86_64.exe \
-            dist/elvs-fernwartung-x86_64.dmg dist/elvs-fernwartung-aarch64.dmg \
+            dist/elvs-fernwartung-*.msi dist/elvs-fernwartung-*.exe dist/elvs-fernwartung-*.dmg \
             dist/rustdesk-update.json dist/SHA256SUMS.txt
           gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json url,assets --jq '.url, (.assets[].name)'
