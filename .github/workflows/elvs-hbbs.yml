@@ -39,7 +39,7 @@ jobs:
         with:
           name: hbbs-elvs-x86_64-musl
           path: out/
-      - name: Release (pre-release, never 'latest': the client update check reads releases/latest)
+      - name: Release as pre-release, never latest (client update check reads releases/latest)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
