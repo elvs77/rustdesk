@@ -61,8 +61,17 @@ def recv_msg(c, timeout=5, skip_empty=True):
     return "timeout"
 
 
+def local_ip():
+    # hbbs treats loopback on the NAT-test port as console, so ask from a real address
+    u = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    u.connect(("192.0.2.1", 9))  # nothing is sent
+    ip = u.getsockname()[0]
+    u.close()
+    return ip
+
+
 def online(ids):
-    s = socket.create_connection(("127.0.0.1", PORT - 1), timeout=5)
+    s = socket.create_connection((local_ip(), PORT - 1), timeout=5)
     body = msg(online_request=pb.OnlineRequest(id="x", peers=ids))
     s.sendall(frame(body))
     data = read_frame(s)
@@ -197,8 +206,12 @@ try:
     data, _ = u.recvfrom(4096)
     check(parse(data).HasField("punch_hole"), "UDP device still gets PunchHole over UDP")
     a.close()
+except Exception:
+    import traceback
+    traceback.print_exc()
+    FAIL.append("exception")
 finally:
-    proc.terminate()
+    proc.kill()
     proc.wait(5)
     log.close()
     print("---- hbbs log (tail) ----")
@@ -206,4 +219,5 @@ finally:
     shutil.rmtree(work, ignore_errors=True)
 
 print(f"\n{len(FAIL)} failures")
-sys.exit(1 if FAIL else 0)
+sys.stdout.flush()
+os._exit(1 if FAIL else 0)  # websockets threads must not keep the process alive
