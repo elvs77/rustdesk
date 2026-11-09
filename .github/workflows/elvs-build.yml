@@ -536,11 +536,12 @@ jobs:
           cat > notes.md <<EOF
           elvs Fernwartung $APP_VERSION, Build $APP_BUILD (Commit $GITHUB_SHA).
 
-          Neu in Build 6: Die automatische Ausweichverbindung über Port 443 aus Build 5 ist wieder
-          abgeschaltet, weil der freie RustDesk-Server die Anmeldung eines Rechners nur über UDP
-          annimmt. Ein Rechner, den Build 5 schon auf WebSocket umgestellt hat, wird beim Start
-          automatisch auf den normalen Weg zurückgestellt. Bitte Build-5-Rechner auf Build 6
-          aktualisieren.
+          Neu in Build 7: Die automatische Ausweichverbindung über Port 443 (WebSocket) ist wieder
+          an. support.elvs.it nimmt seit 09.11.2026 die Anmeldung eines Rechners auch über
+          TCP/WebSocket an (eigener hbbs, Branch elvs-hbbs; getestet mit gesperrten Ports 21115-21119).
+          Kommt ein Rechner 90 s nicht über 21116 durch, schaltet er selbst auf 443 um. Zurück auf
+          den normalen Weg geht er erst, wenn der Server wieder über UDP 21116 antwortet (stündlich
+          geprüft) - eine Firewall, die nur UDP sperrt, führt so nicht mehr zu stündlichen Aussetzern.
 
           Seit Build 4: Der Client schickt kein Anmelde-Token mehr an den Server (behebt "Failed to
           secure tcp: deadline has elapsed" nach einer Anmeldung im Client).
