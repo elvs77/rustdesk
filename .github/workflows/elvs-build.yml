@@ -542,6 +542,9 @@ jobs:
           Kommt ein Rechner 90 s nicht über 21116 durch, schaltet er selbst auf 443 um. Zurück auf
           den normalen Weg geht er erst, wenn der Server wieder über UDP 21116 antwortet (stündlich
           geprüft) - eine Firewall, die nur UDP sperrt, führt so nicht mehr zu stündlichen Aussetzern.
+          Außerdem in Build 7: Der Kunde sieht immer, was der Techniker macht. Verbunden wird immer
+          mit der Konsole (dem Bildschirm vor dem Kunden), es gibt keine Auswahl einer RDP-Sitzung
+          mehr, und der Datenschutzmodus (schwarzer Bildschirm beim Kunden) ist dauerhaft aus.
 
           Seit Build 4: Der Client schickt kein Anmelde-Token mehr an den Server (behebt "Failed to
           secure tcp: deadline has elapsed" nach einer Anmeldung im Client).

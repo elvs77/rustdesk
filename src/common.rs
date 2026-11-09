@@ -2700,6 +2700,24 @@ fn apply_build_time_server_defaults() {
             .unwrap()
             .insert(keys::OPTION_ENABLE_CHECK_UPDATE.to_owned(), "N".to_owned());
     }
+    // elvs (build 7): the customer always sees what the technician does. Privacy mode
+    // (black screen on the customer's side) is switched off for good and cannot be
+    // switched on again in the settings; see also elvs_console_only().
+    if elvs_console_only() {
+        config::OVERWRITE_SETTINGS
+            .write()
+            .unwrap()
+            .insert(keys::OPTION_ENABLE_PRIVACY_MODE.to_owned(), "N".to_owned());
+    }
+}
+
+/// elvs: a session always shows the physical console, the screen the customer sits in
+/// front of. No choice of an RDP session at connect time and no privacy mode, so the
+/// customer can follow every step. At the lock screen the console needs the customer
+/// (or a permanent password) as before.
+#[inline]
+pub(crate) fn elvs_console_only() -> bool {
+    true
 }
 
 pub fn load_custom_client() {

@@ -2299,6 +2299,10 @@ impl Connection {
         pi: &mut PeerInfo,
         wait_session_id_confirm: &mut bool,
     ) {
+        // elvs: never offer RDP sessions, the session is always the console the customer sees
+        if crate::common::elvs_console_only() {
+            return;
+        }
         let sessions = crate::platform::get_available_sessions(true);
         if let Some(current_sid) = crate::platform::get_current_process_session_id() {
             if crate::platform::is_installed()
