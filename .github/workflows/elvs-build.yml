@@ -13,9 +13,9 @@
 name: elvs build
 
 on:
+  # elvs (build 11): no build on every push any more (doubled the runs and the failure e-mails);
+  # builds start by hand (Actions -> elvs build -> Run workflow) or with a tag elvs-*.
   push:
-    branches:
-      - elvs
     tags:
       - "elvs-*"
   workflow_dispatch:
@@ -327,13 +327,9 @@ jobs:
               arch: x86_64,
               vcpkg-triplet: x64-osx,
             }
-          - {
-              target: aarch64-apple-darwin,
-              os: macos-15,
-              extra-build-args: "--screencapturekit",
-              arch: aarch64,
-              vcpkg-triplet: arm64-osx,
-            }
+          # elvs (build 11): the Apple-silicon build was cancelled by GitHub on every run and marked
+          # the whole run as failed (failure e-mails although the release was published). Removed;
+          # the Intel .dmg also runs on Apple-silicon Macs (Rosetta).
     steps:
       - name: Export GitHub Actions cache environment variables
         uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
@@ -540,7 +536,10 @@ jobs:
           cat > notes.md <<EOF
           elvs Fernwartung $APP_VERSION, Build $APP_BUILD (Commit $GITHUB_SHA).
 
-          Neu in Build 11: Eigene Lizenz- und Datenschutzseite im Setup (deutscher Hinweis, AGPL-3.0
+          Neu in Build 11: Versionsnummer mit Build immer sichtbar unten links auf der Startseite und
+          unter Einstellungen > Über. Mac nur noch als Intel-Version (läuft auch auf Apple-Chips).
+
+          Build 10: Eigene Lizenz- und Datenschutzseite im Setup (deutscher Hinweis, AGPL-3.0
           im Original, Verweis auf elvs.de/#datenschutz statt der RustDesk-Datenschutzerklärung).
           "Über" in den Einstellungen nennt elvs als Anbieter der Anpassungen, behält den RustDesk-
           Hinweis und verlinkt elvs.de, die Datenschutzerklärung und den Quellcode.
@@ -581,7 +580,6 @@ jobs:
           |---|---|
           | elvs-fernwartung-x86_64.msi | Windows 64-bit (MSI-Installer) |
           | elvs-fernwartung-x86_64.exe | Windows 64-bit (Programm / Installer) |
-          | elvs-fernwartung-aarch64.dmg | macOS Apple Silicon (M1 und neuer) |
           | elvs-fernwartung-x86_64.dmg | macOS Intel |
           EOF
           # Create as draft first, so "latest" never points to a release without assets.

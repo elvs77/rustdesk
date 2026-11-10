@@ -145,6 +145,18 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                 Expanded(child: Container())
               ],
             ),
+            // elvs (build 11): version and build number always visible, bottom left
+            Positioned(
+              bottom: 8,
+              left: isOutgoingOnly ? 44 : 14,
+              child: SelectionArea(
+                child: Text(
+                  'Version ${bind.mainGetElvsVersionSync()}',
+                  style: TextStyle(
+                      fontSize: 11, color: Colors.grey.withOpacity(0.85)),
+                ),
+              ),
+            ),
             if (isOutgoingOnly)
               Positioned(
                 bottom: 6,

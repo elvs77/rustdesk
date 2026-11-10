@@ -871,6 +871,10 @@ class RustdeskImpl {
     return Future.value(mainGetAppNameSync(hint: hint));
   }
 
+  String mainGetElvsVersionSync({dynamic hint}) {
+    return "";
+  }
+
   String mainGetAppNameSync({dynamic hint}) {
     return js.context.callMethod('getByName', ['app-name']);
   }
