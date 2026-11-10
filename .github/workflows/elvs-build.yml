@@ -540,7 +540,12 @@ jobs:
           cat > notes.md <<EOF
           elvs Fernwartung $APP_VERSION, Build $APP_BUILD (Commit $GITHUB_SHA).
 
-          Neu in Build 10: Der Hinweis auf eine neue Version lädt unter Windows direkt die MSI herunter
+          Neu in Build 11: Eigene Lizenz- und Datenschutzseite im Setup (deutscher Hinweis, AGPL-3.0
+          im Original, Verweis auf elvs.de/datenschutz statt der RustDesk-Datenschutzerklärung).
+          "Über" in den Einstellungen nennt elvs als Anbieter der Anpassungen, behält den RustDesk-
+          Hinweis und verlinkt elvs.de, die Datenschutzerklärung und den Quellcode.
+
+          Build 10: Der Hinweis auf eine neue Version lädt unter Windows direkt die MSI herunter
           (statt die GitHub-Seite mit allen Dateien zu öffnen). Im Setup steht über den englischen
           Bestimmungen ein deutscher Hinweis.
 
