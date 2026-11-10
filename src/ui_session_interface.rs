@@ -1891,7 +1891,13 @@ impl<T: InvokeUiSession> Interface for Session<T> {
                 .unwrap()
                 .selected_windows_session_id
                 .to_owned();
-            if selected == Some(pi.windows_sessions.current_sid) {
+            // elvs (build 8): without the tick "Unauffällig verbinden" always the customer's
+            // own session, so the customer sees the mouse and every step. With the tick the
+            // technician chooses (e.g. a separate RDP session).
+            let elvs_auto = crate::common::is_elvs_update_channel()
+                && hbb_common::config::LocalConfig::get_option(crate::common::ELVS_UNAUFFAELLIG)
+                    != "Y";
+            if elvs_auto || selected == Some(pi.windows_sessions.current_sid) {
                 self.send_selected_session_id(pi.windows_sessions.current_sid.to_string());
             } else {
                 self.set_multiple_windows_session(pi.windows_sessions.sessions.clone());

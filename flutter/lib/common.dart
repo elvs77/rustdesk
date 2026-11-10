@@ -4117,7 +4117,8 @@ bool isElvsUpdatesDisabled() {
 
 void checkUpdate() {
   if (!isWeb) {
-    if (!bind.isCustomClient() && !isElvsUpdatesDisabled()) {
+    // elvs (build 8): the check runs again, only as a notice (see elvs_update_notice()).
+    if (!bind.isCustomClient()) {
       platformFFI.registerEventHandler(
           kCheckSoftwareUpdateFinish, kCheckSoftwareUpdateFinish,
           (Map<String, dynamic> evt) async {

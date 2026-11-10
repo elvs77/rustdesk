@@ -551,6 +551,38 @@ class _ConnectionPageState extends State<ConnectionPage>
             Padding(
               padding: const EdgeInsets.only(top: 13.0),
               child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                // elvs (build 8): without the tick the customer's own session is joined
+                // (the customer sees the mouse); with the tick the session can be chosen.
+                Expanded(
+                  child: StatefulBuilder(builder: (context, setState) {
+                    final on = bind.mainGetLocalOption(key: 'elvs-unauffaellig') == 'Y';
+                    void toggle() async {
+                      await bind.mainSetLocalOption(
+                          key: 'elvs-unauffaellig', value: on ? 'N' : 'Y');
+                      setState(() {});
+                    }
+                    return Tooltip(
+                      message: translate('elvs-unauffaellig-tip'),
+                      child: InkWell(
+                        onTap: toggle,
+                        child: Row(children: [
+                          SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: Checkbox(
+                                value: on, onChanged: (_) => toggle()),
+                          ),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(translate('elvs-unauffaellig'),
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 13)),
+                          ),
+                        ]),
+                      ),
+                    );
+                  }),
+                ),
                 SizedBox(
                   height: 28.0,
                   child: ElevatedButton(

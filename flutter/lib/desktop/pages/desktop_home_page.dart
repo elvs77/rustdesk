@@ -431,8 +431,12 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     if (!bind.isCustomClient() &&
         updateUrl.isNotEmpty &&
         !isCardClosed &&
-        bind.mainUriPrefixSync().contains('rustdesk')) {
-      final isToUpdate = (isWindows || isMacOS) && bind.mainIsInstalled();
+        (isElvsUpdatesDisabled() ||
+            bind.mainUriPrefixSync().contains('rustdesk'))) {
+      // elvs (build 8): only a notice, the button opens the release page (no auto install)
+      final isToUpdate = (isWindows || isMacOS) &&
+          bind.mainIsInstalled() &&
+          !isElvsUpdatesDisabled();
       String btnText = isToUpdate ? 'Update' : 'Download';
       GestureTapCallback onPressed = () async {
         // elvs: download from the release page of the own update channel.

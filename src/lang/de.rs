@@ -16,6 +16,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("Control Remote Desktop", "Entfernten Desktop steuern"),
         ("Transfer file", "Datei übertragen"),
         ("Connect", "Verbinden"),
+        ("elvs-unauffaellig", "Unauffällig verbinden"),
+        ("elvs-unauffaellig-tip", "Ohne Haken: Sie verbinden sich mit der Sitzung des Kunden, er sieht Ihre Maus und jeden Schritt. Mit Haken: Sie wählen die Windows-Sitzung selbst, z. B. eine eigene RDP-Sitzung, die der Kunde nicht sieht."),
         ("Recent sessions", "Letzte Sitzungen"),
         ("Address book", "Adressbuch"),
         ("Confirmation", "Bestätigung"),

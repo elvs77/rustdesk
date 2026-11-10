@@ -540,15 +540,21 @@ jobs:
           cat > notes.md <<EOF
           elvs Fernwartung $APP_VERSION, Build $APP_BUILD (Commit $GITHUB_SHA).
 
-          Neu in Build 7: Die automatische Ausweichverbindung über Port 443 (WebSocket) ist wieder
+          Neu in Build 8: Der Kunde sieht wieder Ihre Maus. Ohne Haken verbinden Sie sich immer
+          mit der Sitzung, in der der Kunde angemeldet ist (keine Abfrage "Konsole oder RDP").
+          Neuer Haken "Unauffällig verbinden" neben "Verbinden": dann wählen Sie die Windows-Sitzung
+          selbst, z. B. eine eigene RDP-Sitzung. Außerdem zeigt der Client beim Start an, wenn es
+          eine neue elvs-Version gibt (Knopf öffnet die Release-Seite, installiert wird nichts von
+          selbst). Die Sprache richtet sich nach Windows und ist unter Einstellungen > Allgemein
+          wählbar. Wirkt auf beiden Seiten: Build 8 auf dem Kunden-PC und auf Ihrem PC.
+
+          Build 7: Die automatische Ausweichverbindung über Port 443 (WebSocket) ist wieder
           an. support.elvs.it nimmt seit 09.11.2026 die Anmeldung eines Rechners auch über
           TCP/WebSocket an (eigener hbbs, Branch elvs-hbbs; getestet mit gesperrten Ports 21115-21119).
           Kommt ein Rechner 90 s nicht über 21116 durch, schaltet er selbst auf 443 um. Zurück auf
           den normalen Weg geht er erst, wenn der Server wieder über UDP 21116 antwortet (stündlich
           geprüft) - eine Firewall, die nur UDP sperrt, führt so nicht mehr zu stündlichen Aussetzern.
-          Außerdem in Build 7: Der Kunde sieht immer, was der Techniker macht. Verbunden wird immer
-          mit der Konsole (dem Bildschirm vor dem Kunden), es gibt keine Auswahl einer RDP-Sitzung
-          mehr, und der Datenschutzmodus (schwarzer Bildschirm beim Kunden) ist dauerhaft aus.
+          Seit Build 7 ist der Datenschutzmodus (schwarzer Bildschirm beim Kunden) dauerhaft aus.
 
           Seit Build 4: Der Client schickt kein Anmelde-Token mehr an den Server (behebt "Failed to
           secure tcp: deadline has elapsed" nach einer Anmeldung im Client).

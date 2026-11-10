@@ -2,6 +2,8 @@ lazy_static::lazy_static! {
 pub static ref T: std::collections::HashMap<&'static str, &'static str> =
     [
         ("desk_tip", "Your desktop can be accessed with this ID and password."),
+        ("elvs-unauffaellig", "Connect discreetly"),
+        ("elvs-unauffaellig-tip", "Unticked: you join the customer's session, the customer sees your mouse and every step. Ticked: you choose the Windows session yourself, e.g. a separate RDP session the customer does not see."),
         ("connecting_status", "Connecting to the Elvs IT Support Management network..."),
         ("not_ready_status", "Not ready. Please check your connection"),
         ("ID/Relay Server", "ID/Relay server"),

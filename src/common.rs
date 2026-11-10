@@ -1173,7 +1173,15 @@ async fn elvs_latest_release_page_url() -> ResultType<String> {
 }
 
 pub fn check_software_update() {
-    if is_custom_client() || elvs_updates_disabled() {
+    if is_custom_client() {
+        return;
+    }
+    if elvs_update_notice() {
+        // elvs: always check (the option is forced to "N" to keep the auto-updater off)
+        std::thread::spawn(move || allow_err!(do_check_software_update()));
+        return;
+    }
+    if elvs_updates_disabled() {
         return;
     }
     let opt = LocalConfig::get_option(keys::OPTION_ENABLE_CHECK_UPDATE);
@@ -1311,7 +1319,7 @@ fn process_software_update_release_page_url(response_url: String) -> ResultType<
 // Because the url is always `https://api.rustdesk.com/version/latest`.
 #[tokio::main(flavor = "current_thread")]
 pub async fn do_check_software_update() -> hbb_common::ResultType<()> {
-    if elvs_updates_disabled() {
+    if elvs_updates_disabled() && !elvs_update_notice() {
         // elvs: no update check at all (see elvs_updates_disabled), no network request.
         clear_software_update_url();
         log::info!("Software update check is disabled in this build.");
@@ -2709,6 +2717,18 @@ fn apply_build_time_server_defaults() {
             .unwrap()
             .insert(keys::OPTION_ENABLE_PRIVACY_MODE.to_owned(), "N".to_owned());
     }
+}
+
+/// elvs (build 8): local option of the controller, "Y" = tick "Unauffällig verbinden"
+/// (choose the Windows session yourself instead of joining the customer's session).
+pub const ELVS_UNAUFFAELLIG: &str = "elvs-unauffaellig";
+
+/// elvs (build 8): the client checks for a newer elvs release at start and shows a notice
+/// with a button that opens the release page. Nothing is downloaded or installed
+/// automatically (elvs_updates_disabled() stays true until releases are signed).
+#[inline]
+pub(crate) fn elvs_update_notice() -> bool {
+    is_elvs_update_channel()
 }
 
 /// elvs: a session always shows the physical console, the screen the customer sits in
