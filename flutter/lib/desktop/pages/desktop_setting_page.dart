@@ -2624,7 +2624,7 @@ class _AboutState extends State<_About> {
                       .marginSymmetric(vertical: 4.0)),
               InkWell(
                   onTap: () {
-                    launchUrlString('https://elvs.de/datenschutz');
+                    launchUrlString('https://elvs.de/#datenschutz');
                   },
                   child: Text(
                     translate('Privacy Statement'),

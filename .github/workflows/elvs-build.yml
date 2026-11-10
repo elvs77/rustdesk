@@ -541,7 +541,7 @@ jobs:
           elvs Fernwartung $APP_VERSION, Build $APP_BUILD (Commit $GITHUB_SHA).
 
           Neu in Build 11: Eigene Lizenz- und Datenschutzseite im Setup (deutscher Hinweis, AGPL-3.0
-          im Original, Verweis auf elvs.de/datenschutz statt der RustDesk-Datenschutzerklärung).
+          im Original, Verweis auf elvs.de/#datenschutz statt der RustDesk-Datenschutzerklärung).
           "Über" in den Einstellungen nennt elvs als Anbieter der Anpassungen, behält den RustDesk-
           Hinweis und verlinkt elvs.de, die Datenschutzerklärung und den Quellcode.
 
