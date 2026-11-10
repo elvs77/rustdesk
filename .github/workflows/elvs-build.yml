@@ -583,10 +583,12 @@ jobs:
           | elvs-fernwartung-x86_64.dmg | macOS Intel |
           EOF
           # Create as draft first, so "latest" never points to a release without assets.
+          # only the files that exist (a missing macOS build must not stop the Windows release)
+          shopt -s nullglob
+          files=(dist/elvs-fernwartung-*.msi dist/elvs-fernwartung-*.exe dist/elvs-fernwartung-*.dmg)
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --draft --title "elvs Fernwartung $APP_VERSION (Build $APP_BUILD)" --notes-file notes.md \
-            dist/elvs-fernwartung-*.msi dist/elvs-fernwartung-*.exe dist/elvs-fernwartung-*.dmg \
-            dist/rustdesk-update.json dist/SHA256SUMS.txt
+            "${files[@]}" dist/rustdesk-update.json dist/SHA256SUMS.txt
           gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json url,assets --jq '.url, (.assets[].name)'
 
