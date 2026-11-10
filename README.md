@@ -1,3 +1,42 @@
+# elvs Fernwartung („Elvs IT-Support“) – angepasste Fassung von RustDesk
+
+Dieses Repository ist die **elvs-Fassung von [RustDesk](https://github.com/rustdesk/rustdesk)**, gepflegt von
+**elvs IT-Service Consulting, Elvis-Aaron Hrsto, Wiesbaden** (www.elvs.de). Wir nutzen sie für die Fernwartung
+unserer Kundinnen und Kunden über unseren eigenen Server.
+
+**Lizenz:** Wie das Original steht alles hier unter der **GNU Affero General Public License v3.0** (Datei `LICENCE`).
+RustDesk ist Copyright © Purslane Tech Pte. Ltd.; unsere Änderungen sind Copyright © elvs IT-Service Consulting
+und stehen ebenfalls unter AGPL-3.0. Der vollständige Quellcode jeder verteilten Version liegt hier öffentlich.
+
+## Was wo liegt
+
+| Branch / Release | Inhalt |
+|---|---|
+| `elvs` | Quellcode des **Clients** (Windows-MSI/EXE, macOS) – Releases `elvs-<version>-<build>` |
+| `elvs-hbbs` | Quellcode unseres angepassten **Servers** (hbbs auf Basis von rustdesk-server) – Release `hbbs-elvs-…` |
+| `master` | unverändertes RustDesk (Upstream) |
+
+## Was wir geändert haben (Auszug)
+
+- Eigener Server fest eingestellt (ID-/Relay-Server und öffentlicher Server-Schlüssel), eigenes Branding „Elvs IT-Support“.
+- Verbindung immer in die Windows-Sitzung, in der der Kunde angemeldet ist (keine Abfrage „Konsole oder RDP“); optional „Unauffällig verbinden“ zur eigenen Sitzungswahl.
+- Ausweichverbindung über Port 443 (WebSocket), wenn die üblichen Ports gesperrt sind – Server-Seite im Branch `elvs-hbbs`.
+- Datenschutzmodus (schwarzer Bildschirm beim Kunden) dauerhaft aus – der Kunde sieht immer, was passiert.
+- Hinweis auf neue Versionen aus diesem Repository (es wird nichts automatisch installiert); deutsches Setup; Versionsnummer mit Build sichtbar.
+- Eigene Lizenz-/Datenschutzseite im Setup und eigene „Über“-Seite (mit RustDesk-Hinweis und Link auf diesen Quellcode).
+
+Die einzelnen Änderungen sind in der Commit-Historie der Branches nachvollziehbar.
+
+## Sicherheit
+
+Hier liegt nur Quellcode. **Keine Zugangsdaten, keine privaten Schlüssel, keine Kundendaten.** Der öffentliche
+Server-Schlüssel im Client ist zum Prüfen der Verbindung gedacht und darf öffentlich sein; der private Schlüssel
+des Servers liegt nur auf dem Server. Sicherheitsprobleme bitte vertraulich an info@elvs.eu.
+
+---
+
+*Darunter folgt die ursprüngliche Beschreibung von RustDesk.*
+
 <p align="center">
   <img src="res/logo-header.svg" alt="RustDesk - Your remote desktop"><br>
   <a href="#raw-steps-to-build">Build</a> •
