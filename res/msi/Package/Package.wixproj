@@ -4,6 +4,8 @@
     </IncludeSearchPaths>
     <Configurations>Release</Configurations>
     <Platforms>x64;ARM64</Platforms>
+    <!-- elvs: Setup auf Deutsch (Kunden ohne Englisch) -->
+    <Cultures>de-DE</Cultures>
   </PropertyGroup>
   <ItemGroup>
     <Content Include="Includes.wxi" />

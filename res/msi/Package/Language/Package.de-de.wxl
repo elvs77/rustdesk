@@ -1,0 +1,52 @@
+﻿<!--
+This file contains the declaration of all the localizable strings.
+-->
+<WixLocalization Culture="de-de" Codepage="1252"
+	xmlns="http://wixtoolset.org/schemas/v4/wxl">
+
+	<String Id="SummaryCodepage" Value="1252" />
+	<String Id="ProductLanguage" Value="1031" />
+
+	<!-- General strings -->
+	<String Id="DowngradeError" Value="Eine neuere Version von [ProductName] ist bereits installiert." />
+
+	<String Id="AR_Comment" Value="RustDesk" />
+
+	<String Id="F_App" Value="RustDesk" />
+	<String Id="F_App_Desc" Value="Elvs IT-Support – Installation des Hauptprogramms." />
+
+	<String Id="SC_Uninstall" Value="Elvs IT-Support deinstallieren" />
+	<String Id="SC_Uninstall_Desc" Value="Entfernt Elvs IT-Support vom Computer" />
+
+	<!-- Client related strings -->
+	<String Id="F_Client" Value="Client" />
+	<String Id="F_Client_Desc" Value="Die Benutzeroberfläche." />
+	<String Id="F_LAVFilters" Value="LAV Filters" />
+	<String Id="F_LAVFilters_Desc" Value="Empfohlene DirectShow-Filter für die Audio- und Videowiedergabe." />
+
+	<String Id="SC_Client" Value="Elvs IT-Support" />
+	<String Id="SC_Client_Desc" Value="Elvs IT-Support starten." />
+
+	<String Id="SC_Client_Tray" Value="Elvs IT-Support (Infobereich)" />
+	<String Id="SC_Client_Tray_Desc" Value="Elvs IT-Support im Infobereich starten." />
+
+	<!-- Server related strings -->
+	<String Id="F_Server" Value="Server" />
+	<String Id="F_Server_Desc" Value="Der Dienst-Teil von Elvs IT-Support." />
+
+	<String Id="Service_DisplayName" Value="Elvs IT-Support Dienst" />
+	<String Id="Service_Description" Value="Dieser Dienst ermöglicht die Fernwartung durch elvs IT-Service." />
+
+	<!-- Launch Conditions -->
+	<String Id="LC_OS" Value="[ProductName] benötigt mindestens Windows 7 / Server 2008 R2." />
+	<String Id="LC_ADMIN" Value="Zum Installieren von [ProductName] werden Administratorrechte benötigt." />
+
+	<!-- User Interfaces -->
+	<String Id="AnotherAppDialogTitle" Value="Installation abbrechen."/>
+	<String Id="AnotherAppDialogDescription" Value="Das Programm wurde bereits auf andere Weise installiert. Bitte zuerst deinstallieren."/>
+
+	<String Id="MyInstallDirDlgDesktopShortcuts" Value="Symbol auf dem Desktop anlegen" />
+	<String Id="MyInstallDirDlgStartMenuShortcuts" Value="Verknüpfungen im Startmenü anlegen" />
+	<String Id="MyInstallDirDlgPrinter" Value="Drucker „Elvs IT-Support“ installieren" />
+
+</WixLocalization>

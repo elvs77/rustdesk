@@ -297,7 +297,7 @@ jobs:
           python preprocess.py --arp -d ../../rustdesk
           nuget restore msi.sln
           msbuild msi.sln -p:Configuration=Release -p:Platform=x64 /p:TargetVersion=Windows10
-          $msi = Get-ChildItem ./Package/bin/*/Release/en-us/Package.msi | Select-Object -First 1
+          $msi = Get-ChildItem ./Package/bin/*/Release/*/Package.msi | Select-Object -First 1
           mv $msi.FullName ../../SignOutput/elvs-fernwartung-${{ env.ELVS_ARCH }}.msi
           sha256sum ../../SignOutput/elvs-fernwartung-*
 
@@ -540,7 +540,10 @@ jobs:
           cat > notes.md <<EOF
           elvs Fernwartung $APP_VERSION, Build $APP_BUILD (Commit $GITHUB_SHA).
 
-          Neu in Build 8: Der Kunde sieht wieder Ihre Maus. Ohne Haken verbinden Sie sich immer
+          Neu in Build 9: Das Setup (MSI-Installer) ist jetzt auf Deutsch - alle Knöpfe und Texte
+          der Installation, damit Kunden ohne Englisch sicher durchklicken können. Sonst wie Build 8.
+
+          Build 8: Der Kunde sieht wieder Ihre Maus. Ohne Haken verbinden Sie sich immer
           mit der Sitzung, in der der Kunde angemeldet ist (keine Abfrage "Konsole oder RDP").
           Neuer Haken "Unauffällig verbinden" neben "Verbinden": dann wählen Sie die Windows-Sitzung
           selbst, z. B. eine eigene RDP-Sitzung. Außerdem zeigt der Client beim Start an, wenn es
