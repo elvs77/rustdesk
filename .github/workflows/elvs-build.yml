@@ -540,7 +540,11 @@ jobs:
           cat > notes.md <<EOF
           elvs Fernwartung $APP_VERSION, Build $APP_BUILD (Commit $GITHUB_SHA).
 
-          Neu in Build 9: Das Setup (MSI-Installer) ist jetzt auf Deutsch - alle Knöpfe und Texte
+          Neu in Build 10: Der Hinweis auf eine neue Version lädt unter Windows direkt die MSI herunter
+          (statt die GitHub-Seite mit allen Dateien zu öffnen). Im Setup steht über den englischen
+          Bestimmungen ein deutscher Hinweis.
+
+          Build 9: Das Setup (MSI-Installer) ist jetzt auf Deutsch - alle Knöpfe und Texte
           der Installation, damit Kunden ohne Englisch sicher durchklicken können. Sonst wie Build 8.
 
           Build 8: Der Kunde sieht wieder Ihre Maus. Ohne Haken verbinden Sie sich immer

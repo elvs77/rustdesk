@@ -439,8 +439,13 @@ class _DesktopHomePageState extends State<DesktopHomePage>
           !isElvsUpdatesDisabled();
       String btnText = isToUpdate ? 'Update' : 'Download';
       GestureTapCallback onPressed = () async {
-        // elvs: download from the release page of the own update channel.
-        final Uri url = Uri.parse(updateUrl);
+        // elvs (build 10): Windows downloads the German MSI of this release directly
+        // (no GitHub page with all files); other systems keep the release page.
+        Uri url = Uri.parse(updateUrl);
+        if (isWindows && updateUrl.contains('/releases/tag/')) {
+          url = Uri.parse(
+              '${updateUrl.replaceFirst('/releases/tag/', '/releases/download/')}/elvs-fernwartung-x86_64.msi');
+        }
         await launchUrl(url);
       };
       if (isToUpdate) {
