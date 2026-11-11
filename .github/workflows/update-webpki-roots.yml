@@ -11,8 +11,7 @@ name: Update webpki-roots
 # branch, to run CI on it.
 
 on:
-  schedule:
-    - cron: "0 3 * * 1"
+  # elvs: kein woechentlicher Upstream-Job im Fork (nur noch manuell)
   workflow_dispatch:
 
 # A manual dispatch overlapping the weekly run would race it force-pushing
