@@ -41,6 +41,11 @@ jobs:
 
       - name: Install prerequisites
         run: |
+          # elvs: GitHub-Runner konnten azure.archive.ubuntu.com zeitweise nicht aufloesen (11.11.2026) -
+          # auf den normalen Ubuntu-Spiegel umstellen, mit Wiederholungen
+          if [ -f /etc/apt/apt-mirrors.txt ]; then echo "http://archive.ubuntu.com/ubuntu/" | sudo tee /etc/apt/apt-mirrors.txt; fi
+          sudo sed -i 's#http://azure.archive.ubuntu.com/ubuntu#http://archive.ubuntu.com/ubuntu#g' /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true
+          echo 'Acquire::Retries "5";' | sudo tee /etc/apt/apt.conf.d/80-retries
           sudo apt-get install ca-certificates -y
           sudo apt-get update -y
           sudo apt-get install -y \
