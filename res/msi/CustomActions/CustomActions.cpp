@@ -1096,3 +1096,183 @@ LExit:
     er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;
     return WcaFinalize(er);
 }
+
+// ===================== elvs (Build 12): alte Installationen entfernen =====================
+// Vor der Installation werden alle frueheren Fernwartungs-Clients entfernt, die NICHT ueber
+// diese MSI-Produktfamilie installiert wurden (EXE-Selbstinstallation von RustDesk oder elvs,
+// verwaiste Eintraege). MSI-Installationen mit derselben UpgradeCode entfernt bereits die
+// MajorUpgrade-Regel; fremde MSI-Pakete koennen innerhalb einer laufenden Installation nicht
+// deinstalliert werden und werden nur protokolliert.
+// Erkennung ueber den Eintrag in der Programmliste (Uninstall-Schluessel), nicht ueber eine
+// Signatur, weil die elvs-Builds noch nicht signiert sind.
+
+static BOOL ElvsContainsI(LPCWSTR haystack, LPCWSTR needle)
+{
+    if (!haystack || !needle || !*haystack) return FALSE;
+    return StrStrIW(haystack, needle) != NULL;
+}
+
+static BOOL ElvsIsRemoteClient(LPCWSTR displayName, LPCWSTR publisher)
+{
+    if (ElvsContainsI(displayName, L"RustDesk")) return TRUE;
+    if (ElvsContainsI(publisher, L"Purslane")) return TRUE;
+    if (ElvsContainsI(publisher, L"RustDesk")) return TRUE;
+    if (ElvsContainsI(displayName, L"Elvs IT-Support")) return TRUE;
+    if (ElvsContainsI(displayName, L"elvs Fernwartung")) return TRUE;
+    if (ElvsContainsI(displayName, L"Fernwartung") && ElvsContainsI(publisher, L"elvs")) return TRUE;
+    return FALSE;
+}
+
+static BOOL ElvsReadRegString(HKEY hKey, LPCWSTR name, LPWSTR buf, DWORD cch)
+{
+    DWORD type = 0;
+    DWORD cb = (cch - 1) * sizeof(wchar_t);
+    buf[0] = L'\0';
+    LSTATUS st = RegQueryValueExW(hKey, name, NULL, &type, (LPBYTE)buf, &cb);
+    if (st != ERROR_SUCCESS || (type != REG_SZ && type != REG_EXPAND_SZ)) {
+        buf[0] = L'\0';
+        return FALSE;
+    }
+    buf[cb / sizeof(wchar_t) < cch ? cb / sizeof(wchar_t) : cch - 1] = L'\0';
+    return TRUE;
+}
+
+// Liefert den Programmpfad aus einer UninstallString ("C:\...\x.exe" --uninstall  oder  C:\...\x.exe)
+static void ElvsExeFromCommand(LPCWSTR cmd, LPWSTR exe, DWORD cch)
+{
+    exe[0] = L'\0';
+    if (!cmd || !*cmd) return;
+    const wchar_t* p = cmd;
+    while (*p == L' ') p++;
+    if (*p == L'"') {
+        p++;
+        const wchar_t* e = wcschr(p, L'"');
+        size_t n = e ? (size_t)(e - p) : wcslen(p);
+        if (n >= cch) n = cch - 1;
+        wcsncpy_s(exe, cch, p, n);
+    }
+    else {
+        const wchar_t* e = StrStrIW(p, L".exe");
+        size_t n = e ? (size_t)(e - p) + 4 : wcslen(p);
+        if (n >= cch) n = cch - 1;
+        wcsncpy_s(exe, cch, p, n);
+    }
+}
+
+static BOOL ElvsRunAndWait(LPWSTR cmdline, DWORD timeoutMs)
+{
+    STARTUPINFOW si = { 0 };
+    PROCESS_INFORMATION pi = { 0 };
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESHOWWINDOW;
+    si.wShowWindow = SW_HIDE;
+    if (!CreateProcessW(NULL, cmdline, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
+        WcaLog(LOGMSG_STANDARD, "elvs: Start fehlgeschlagen (%lu): %ls", GetLastError(), cmdline);
+        return FALSE;
+    }
+    DWORD w = WaitForSingleObject(pi.hProcess, timeoutMs);
+    DWORD code = 0;
+    GetExitCodeProcess(pi.hProcess, &code);
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+    WcaLog(LOGMSG_STANDARD, "elvs: beendet (wait=%lu, exit=%lu): %ls", w, code, cmdline);
+    return w == WAIT_OBJECT_0;
+}
+
+static void ElvsCleanView(REGSAM view)
+{
+    const wchar_t* root = L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall";
+    HKEY hRoot = NULL;
+    if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, root, 0, KEY_READ | view, &hRoot) != ERROR_SUCCESS) return;
+
+    // Namen erst sammeln, weil beim Entfernen Schluessel wegfallen
+    wchar_t names[64][256];
+    DWORD count = 0;
+    for (DWORD i = 0; count < 64; i++) {
+        wchar_t sub[256] = { 0 };
+        DWORD cch = 256;
+        LSTATUS st = RegEnumKeyExW(hRoot, i, sub, &cch, NULL, NULL, NULL, NULL);
+        if (st == ERROR_NO_MORE_ITEMS) break;
+        if (st != ERROR_SUCCESS) continue;
+        HKEY hSub = NULL;
+        if (RegOpenKeyExW(hRoot, sub, 0, KEY_READ | view, &hSub) != ERROR_SUCCESS) continue;
+        wchar_t dn[512], pub[512];
+        ElvsReadRegString(hSub, L"DisplayName", dn, 512);
+        ElvsReadRegString(hSub, L"Publisher", pub, 512);
+        DWORD wi = 0, cb = sizeof(wi), type = 0;
+        BOOL isMsi = (RegQueryValueExW(hSub, L"WindowsInstaller", NULL, &type, (LPBYTE)&wi, &cb) == ERROR_SUCCESS && type == REG_DWORD && wi == 1);
+        RegCloseKey(hSub);
+        if (!ElvsIsRemoteClient(dn, pub)) continue;
+        if (isMsi) {
+            WcaLog(LOGMSG_STANDARD, "elvs: MSI-Installation \"%ls\" (%ls) - wird ueber MajorUpgrade ersetzt bzw. nicht angefasst", dn, sub);
+            continue;
+        }
+        wcsncpy_s(names[count], 256, sub, _TRUNCATE);
+        count++;
+    }
+
+    for (DWORD i = 0; i < count; i++) {
+        HKEY hSub = NULL;
+        if (RegOpenKeyExW(hRoot, names[i], 0, KEY_READ | view, &hSub) != ERROR_SUCCESS) continue;
+        wchar_t dn[512], quiet[1024], uninst[1024], exe[MAX_PATH];
+        ElvsReadRegString(hSub, L"DisplayName", dn, 512);
+        ElvsReadRegString(hSub, L"QuietUninstallString", quiet, 1024);
+        ElvsReadRegString(hSub, L"UninstallString", uninst, 1024);
+        RegCloseKey(hSub);
+
+        LPCWSTR cmdSrc = quiet[0] ? quiet : uninst;
+        ElvsExeFromCommand(cmdSrc, exe, MAX_PATH);
+        WcaLog(LOGMSG_STANDARD, "elvs: alte Installation gefunden: \"%ls\" (%ls), Befehl: %ls", dn, names[i], cmdSrc);
+
+        if (exe[0] && GetFileAttributesW(exe) != INVALID_FILE_ATTRIBUTES && !ElvsContainsI(exe, L"msiexec")) {
+            wchar_t cmd[1200];
+            if (ElvsContainsI(cmdSrc, L"--uninstall")) {
+                wcsncpy_s(cmd, 1200, cmdSrc, _TRUNCATE);
+            }
+            else {
+                StringCchPrintfW(cmd, 1200, L"\"%ls\" --uninstall", exe);
+            }
+            ElvsRunAndWait(cmd, 120000);
+            // Die RustDesk-Deinstallation beendet das eigene Programm, bevor ihr Skript den
+            // Programmordner loescht. Warten, bis der Ordner weg ist (max. 90 s), damit sich das
+            // Loeschen nicht mit dem Kopieren der neuen Dateien ueberschneidet.
+            wchar_t dir[MAX_PATH];
+            wcsncpy_s(dir, MAX_PATH, exe, _TRUNCATE);
+            PathRemoveFileSpecW(dir);
+            for (int t = 0; t < 90 && dir[0] && GetFileAttributesW(dir) != INVALID_FILE_ATTRIBUTES; t++) {
+                Sleep(1000);
+            }
+            WcaLog(LOGMSG_STANDARD, "elvs: Programmordner %ls %ls", dir, GetFileAttributesW(dir) == INVALID_FILE_ATTRIBUTES ? L"entfernt" : L"noch vorhanden");
+        }
+        else {
+            WcaLog(LOGMSG_STANDARD, "elvs: Programm nicht vorhanden, entferne nur den verwaisten Eintrag");
+        }
+
+        // Eintrag in der Programmliste entfernen, falls die Deinstallation ihn stehen liess
+        HKEY hDel = NULL;
+        if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, root, 0, KEY_READ | KEY_WRITE | DELETE | view, &hDel) == ERROR_SUCCESS) {
+            LSTATUS st = RegDeleteTreeW(hDel, names[i]);
+            if (st == ERROR_SUCCESS) {
+                WcaLog(LOGMSG_STANDARD, "elvs: Eintrag %ls entfernt", names[i]);
+            }
+            RegCloseKey(hDel);
+        }
+    }
+    RegCloseKey(hRoot);
+}
+
+UINT __stdcall ElvsRemoveOldInstalls(__in MSIHANDLE hInstall)
+{
+    HRESULT hr = S_OK;
+    DWORD er = ERROR_SUCCESS;
+
+    hr = WcaInitialize(hInstall, "ElvsRemoveOldInstalls");
+    ExitOnFailure(hr, "Failed to initialize");
+
+    ElvsCleanView(KEY_WOW64_64KEY);
+    ElvsCleanView(KEY_WOW64_32KEY);
+
+LExit:
+    er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;
+    return WcaFinalize(er);
+}

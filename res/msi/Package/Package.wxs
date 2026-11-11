@@ -31,11 +31,12 @@
 		<UIRef Id="WixUI_ErrorProgressText" />
 
 		<InstallUISequence>
-			<Show Dialog="UI_AnotherAppDialog" Before="WelcomeDlg" Condition="NOT Installed AND (APP_WINDOWS_INSTALLER=&quot;#0&quot; OR APP_WINDOWS_INSTALLER32=&quot;#0&quot;)"/>
+			<!-- elvs (Build 12): kein Abbruch mehr, wenn eine EXE-Installation da ist - sie wird stattdessen entfernt (ElvsRemoveOldInstalls) -->
 		</InstallUISequence>
 
 		<InstallExecuteSequence>
-			<Custom Action="BlockSelfInstalledApp" After="AppSearch" Condition="NOT Installed AND (APP_WINDOWS_INSTALLER=&quot;#0&quot; OR APP_WINDOWS_INSTALLER32=&quot;#0&quot;)" />
+			<!-- elvs (Build 12): alte Clients (EXE-Installationen von RustDesk/elvs, verwaiste Eintraege) vor dem Kopieren der Dateien entfernen -->
+			<Custom Action="ElvsRemoveOldInstalls" After="InstallInitialize" Condition="NOT Installed AND NOT REMOVE" />
 			<InstallExecute After="RemoveExistingProducts" />
 
 			<!--Only do InstallValidate if is not Uninstall-->

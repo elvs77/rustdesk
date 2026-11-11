@@ -487,6 +487,9 @@ jobs:
         run: |
           set -euo pipefail
           cd dist
+          # elvs (Build 12): Windows nur noch als MSI - die EXE installiert sich an der MSI vorbei
+          # und hinterliess doppelte Eintraege in der Programmliste
+          rm -f elvs-fernwartung-*.exe
           ls -l
           python3 - <<'PY'
           import datetime, hashlib, json, os
@@ -494,7 +497,6 @@ jobs:
           tag = os.environ["TAG"]
           prefix = f"https://github.com/{repo}/releases/download/{tag}/"
           files = [
-              ("windows", "x86_64", "exe", "elvs-fernwartung-x86_64.exe"),
               ("windows", "x86_64", "msi", "elvs-fernwartung-x86_64.msi"),
               ("macos", "x86_64", "dmg", "elvs-fernwartung-x86_64.dmg"),
               ("macos", "aarch64", "dmg", "elvs-fernwartung-aarch64.dmg"),
@@ -536,7 +538,11 @@ jobs:
           cat > notes.md <<EOF
           elvs Fernwartung $APP_VERSION, Build $APP_BUILD (Commit $GITHUB_SHA).
 
-          Neu in Build 11: Versionsnummer mit Build immer sichtbar unten links auf der Startseite und
+          Neu in Build 12: Das Setup entfernt vor der Installation alle älteren Fernwartungs-Clients
+          (RustDesk und frühere elvs-Versionen, auch über die EXE installierte) - danach steht nur noch
+          ein Client in der Programmliste. Für Windows gibt es nur noch die MSI.
+
+          Build 11: Versionsnummer mit Build immer sichtbar unten links auf der Startseite und
           unter Einstellungen > Über. Mac nur noch als Intel-Version (läuft auch auf Apple-Chips).
 
           Build 10: Eigene Lizenz- und Datenschutzseite im Setup (deutscher Hinweis, AGPL-3.0
@@ -579,13 +585,12 @@ jobs:
           | Datei | System |
           |---|---|
           | elvs-fernwartung-x86_64.msi | Windows 64-bit (MSI-Installer) |
-          | elvs-fernwartung-x86_64.exe | Windows 64-bit (Programm / Installer) |
           | elvs-fernwartung-x86_64.dmg | macOS Intel |
           EOF
           # Create as draft first, so "latest" never points to a release without assets.
           # only the files that exist (a missing macOS build must not stop the Windows release)
           shopt -s nullglob
-          files=(dist/elvs-fernwartung-*.msi dist/elvs-fernwartung-*.exe dist/elvs-fernwartung-*.dmg)
+          files=(dist/elvs-fernwartung-*.msi dist/elvs-fernwartung-*.dmg)
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --draft --title "elvs Fernwartung $APP_VERSION (Build $APP_BUILD)" --notes-file notes.md \
             "${files[@]}" dist/rustdesk-update.json dist/SHA256SUMS.txt
