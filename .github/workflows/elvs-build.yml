@@ -102,6 +102,13 @@ jobs:
             build=$(( ${existing:-0} + 1 ))
             tag="elvs-$version-$build"
             release=true
+          else
+            # elvs (Build 13): auch Test-Builds ohne Release bekommen die Nummer des naechsten Releases,
+            # damit Setup und Client beim Testen dieselbe Build-Nummer zeigen wie spaeter das Update
+            existing=$( {
+              gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[].tag_name' || true
+            } | grep -E "^elvs-${version//./\\.}-[0-9]+$" | sed 's/.*-//' | sort -n | tail -n 1 || true)
+            build=$(( ${existing:-0} + 1 ))
           fi
           echo "version=$version build=$build tag=$tag release=$release"
           {
@@ -539,7 +546,8 @@ jobs:
           elvs Fernwartung $APP_VERSION, Build $APP_BUILD (Commit $GITHUB_SHA).
 
           Neu in Build 13: Behebt den Setup-Fehler 2613 beim Aktualisieren einer bereits per MSI
-          installierten Version (Build 12 brach dort ab).
+          installierten Version (Build 12 brach dort ab). Das Setup zeigt jetzt in jedem Fenster
+          Version und Build an (z. B. "Elvs IT-Support 1.5.1 (Build 13) – Setup").
 
           Build 12: Das Setup entfernt vor der Installation alle älteren Fernwartungs-Clients
           (RustDesk und frühere elvs-Versionen, auch über die EXE installierte) - danach steht nur noch

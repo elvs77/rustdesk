@@ -22,6 +22,8 @@
 		<Icon Id="AppIcon" SourceFile="Resources\icon.ico" />
 		<!-- elvs: internal app name for custom actions (printer), independent of the displayed ProductName -->
 		<Property Id="ELVS_APP_NAME" Value="$(var.Product)" />
+		<!-- elvs (Build 14): Version und Build im Setup sichtbar (Fenstertitel, Begruessung) -->
+		<Property Id="ElvsVersionText" Value="$(var.ElvsVersionText)" />
 		<CustomAction Id="BlockSelfInstalledApp" Error="!(loc.AnotherAppDialogDescription)" />
 
 		<!-- User Interface -->

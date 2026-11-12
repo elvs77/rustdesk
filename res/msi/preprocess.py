@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import os
 import json
 import sys
 import uuid
@@ -38,6 +39,12 @@ g_arpsystemcomponent = {
         "v": "https://github.com/rustdesk/rustdesk",
     },
 }
+
+def elvs_version_text():
+    base = ".".join(g_version.split(".")[:3])
+    build = os.environ.get("ELVS_BUILD", "").strip()
+    return f"{base} (Build {build})" if build and build != "0" else base
+
 
 def default_revision_version():
     return int(datetime.datetime.now().timestamp() / 60)
@@ -256,6 +263,8 @@ def gen_pre_vars(args, dist_dir):
             f'{indent}<?define RegKeyInstall="$(var.RegKeyRoot)\\Install" ?>\n',
             f'{indent}<?define BuildDir="{dist_dir}" ?>\n',
             f'{indent}<?define BuildDate="{g_build_date}" ?>\n',
+            # elvs (Build 14): Version mit Build-Nummer fuer die Setup-Fenster (z. B. "1.5.1 (Build 14)")
+            f'{indent}<?define ElvsVersionText="{elvs_version_text()}" ?>\n',
             "\n",
             f"{indent}<!-- The UpgradeCode must be consistent for each product. ! -->\n"
             f'{indent}<?define UpgradeCode = "{upgrade_code}" ?>\n',

@@ -10,6 +10,31 @@ This file contains the declaration of all the localizable strings.
 	<!-- General strings -->
 	<String Id="DowngradeError" Value="Eine neuere Version von [ProductName] ist bereits installiert." />
 
+	<!-- elvs (Build 14): Version und Build in allen Setup-Fenstern -->
+	<String Id="WelcomeDlg_Title" Value="[ProductName] [ElvsVersionText] – Setup" />
+	<String Id="LicenseAgreementDlg_Title" Value="[ProductName] [ElvsVersionText] – Setup" />
+	<String Id="InstallDirDlg_Title" Value="[ProductName] [ElvsVersionText] – Setup" />
+	<String Id="BrowseDlg_Title" Value="[ProductName] [ElvsVersionText] – Setup" />
+	<String Id="VerifyReadyDlg_Title" Value="[ProductName] [ElvsVersionText] – Setup" />
+	<String Id="ProgressDlg_Title" Value="[ProductName] [ElvsVersionText] – Setup" />
+	<String Id="ExitDialog_Title" Value="[ProductName] [ElvsVersionText] – Setup" />
+	<String Id="ErrorDlg_Title" Value="[ProductName] [ElvsVersionText] – Setup" />
+	<String Id="FatalError_Title" Value="[ProductName] [ElvsVersionText] – Setup" />
+	<String Id="UserExit_Title" Value="[ProductName] [ElvsVersionText] – Setup" />
+	<String Id="CancelDlg_Title" Value="[ProductName] [ElvsVersionText] – Setup" />
+	<String Id="MaintenanceWelcomeDlg_Title" Value="[ProductName] [ElvsVersionText] – Setup" />
+	<String Id="MaintenanceTypeDlg_Title" Value="[ProductName] [ElvsVersionText] – Setup" />
+	<String Id="PrepareDlg_Title" Value="[ProductName] [ElvsVersionText] – Setup" />
+	<String Id="ResumeDlg_Title" Value="[ProductName] [ElvsVersionText] – Setup" />
+	<String Id="FilesInUse_Title" Value="[ProductName] [ElvsVersionText] – Setup" />
+	<String Id="MsiRMFilesInUse_Title" Value="[ProductName] [ElvsVersionText] – Setup" />
+	<String Id="WaitForCostingDlg_Title" Value="[ProductName] [ElvsVersionText] – Setup" />
+	<String Id="OutOfDiskDlg_Title" Value="[ProductName] [ElvsVersionText] – Setup" />
+	<String Id="OutOfRbDiskDlg_Title" Value="[ProductName] [ElvsVersionText] – Setup" />
+	<String Id="DiskCostDlg_Title" Value="[ProductName] [ElvsVersionText] – Setup" />
+	<String Id="CustomizeDlg_Title" Value="[ProductName] [ElvsVersionText] – Setup" />
+	<String Id="WelcomeDlgDescription" Value="Der Setup-Assistent installiert [ProductName], Version [ElvsVersionText], auf Ihrem Computer. Klicken Sie auf „Weiter“, um fortzufahren, oder auf „Abbrechen“, um den Assistenten zu beenden." />
+
 	<String Id="AR_Comment" Value="RustDesk" />
 
 	<String Id="F_App" Value="RustDesk" />
