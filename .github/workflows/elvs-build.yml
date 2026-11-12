@@ -538,7 +538,10 @@ jobs:
           cat > notes.md <<EOF
           elvs Fernwartung $APP_VERSION, Build $APP_BUILD (Commit $GITHUB_SHA).
 
-          Neu in Build 12: Das Setup entfernt vor der Installation alle älteren Fernwartungs-Clients
+          Neu in Build 13: Behebt den Setup-Fehler 2613 beim Aktualisieren einer bereits per MSI
+          installierten Version (Build 12 brach dort ab).
+
+          Build 12: Das Setup entfernt vor der Installation alle älteren Fernwartungs-Clients
           (RustDesk und frühere elvs-Versionen, auch über die EXE installierte) - danach steht nur noch
           ein Client in der Programmliste. Für Windows gibt es nur noch die MSI.
 

@@ -36,7 +36,8 @@
 
 		<InstallExecuteSequence>
 			<!-- elvs (Build 12): alte Clients (EXE-Installationen von RustDesk/elvs, verwaiste Eintraege) vor dem Kopieren der Dateien entfernen -->
-			<Custom Action="ElvsRemoveOldInstalls" After="InstallInitialize" Condition="NOT Installed AND NOT REMOVE" />
+			<!-- elvs (Build 13): erst NACH RemoveExistingProducts - davor im Skript fuehrt bei einem Upgrade zu Fehler 2613 -->
+			<Custom Action="ElvsRemoveOldInstalls" After="RemoveExistingProducts" Condition="NOT Installed AND NOT REMOVE" />
 			<InstallExecute After="RemoveExistingProducts" />
 
 			<!--Only do InstallValidate if is not Uninstall-->
