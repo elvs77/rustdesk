@@ -1150,10 +1150,10 @@ pub fn main_get_app_name_sync() -> SyncReturn<String> {
     SyncReturn(get_app_name())
 }
 
-// elvs (build 11): version + build number for the home page and the about page, e.g. "1.5.1 · Build 11"
+// elvs (build 11/14): version for the home page and the about page, e.g. "1.5.1.14"
 pub fn main_get_elvs_version_sync() -> SyncReturn<String> {
-    let b = crate::common::elvs_build_number();
-    SyncReturn(if b > 0 { format!("{} · Build {}", get_version(), b) } else { get_version() })
+    // elvs (build 14): one number, e.g. "1.5.1.14", test builds "1.5.1.14 TEST"
+    SyncReturn(crate::common::elvs_own_version_text())
 }
 
 pub fn main_uri_prefix_sync() -> SyncReturn<String> {

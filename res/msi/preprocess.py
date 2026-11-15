@@ -40,10 +40,21 @@ g_arpsystemcomponent = {
     },
 }
 
+def elvs_build():
+    try:
+        return int(os.environ.get("ELVS_BUILD", "").strip() or 0)
+    except ValueError:
+        return 0
+
+
 def elvs_version_text():
+    # elvs (build 14): one number everywhere, e.g. "1.5.1.14", test builds "1.5.1.14 TEST"
     base = ".".join(g_version.split(".")[:3])
-    build = os.environ.get("ELVS_BUILD", "").strip()
-    return f"{base} (Build {build})" if build and build != "0" else base
+    build = elvs_build()
+    text = f"{base}.{build}" if build > 0 else base
+    if os.environ.get("ELVS_TEST", "").strip() == "1" or build == 0:
+        text += " TEST"
+    return text
 
 
 def default_revision_version():
@@ -495,7 +506,9 @@ def init_global_vars(dist_dir, app_name, args):
         # https://github.com/dotnet/runtime/blob/5535e31a712343a63f5d7d796cd874e563e5ac14/src/libraries/System.Private.CoreLib/src/System/Version.cs
         if args.revision_version < 0 or args.revision_version > 2147483647:
             raise ValueError(f"Invalid revision version: {args.revision_version}")    
-        g_version = f"{g_version}.{args.revision_version}"
+        # elvs (build 14): 4th part = build number, so Windows "Apps" shows 1.5.1.14
+        # (MSI upgrades only compare the first three parts, so this is safe)
+        g_version = f"{g_version}.{elvs_build() or args.revision_version}"
 
     g_build_date = read_process_output("--build-date")
     build_date_pattern = re.compile(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}")

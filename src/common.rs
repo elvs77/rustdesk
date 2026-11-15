@@ -1126,6 +1126,23 @@ pub(crate) fn elvs_build_number() -> u32 {
         .unwrap_or(0)
 }
 
+/// elvs (build 14): test builds (workflow runs without release) are built with ELVS_TEST=1.
+pub(crate) fn elvs_is_test_build() -> bool {
+    matches!(option_env!("ELVS_TEST").map(|v| v.trim()), Some("1"))
+}
+
+/// elvs (build 14): one version number everywhere, e.g. "1.5.1.14" (or "1.5.1.14 TEST").
+pub(crate) fn elvs_version_text(base: &str, build: u32, test: bool) -> String {
+    let base = base.split('.').take(3).collect::<Vec<_>>().join(".");
+    let v = if build > 0 { format!("{}.{}", base, build) } else { base };
+    if test { format!("{} TEST", v) } else { v }
+}
+
+/// elvs (build 14): version text of the running client.
+pub(crate) fn elvs_own_version_text() -> String {
+    elvs_version_text(crate::VERSION, elvs_build_number(), elvs_is_test_build() || elvs_build_number() == 0)
+}
+
 /// Splits "elvs-1.5.1-2" into ("1.5.1", 2).
 pub(crate) fn parse_elvs_release_id(release_id: &str) -> ResultType<(&str, u32)> {
     let Some(rest) = release_id.strip_prefix(ELVS_RELEASE_PREFIX) else {
@@ -1291,6 +1308,11 @@ fn process_software_update_release_page_url(response_url: String) -> ResultType<
     let release_id = release_id_from_update_url(&response_url)?;
     let latest_release_version = display_version_from_release_id(&release_id)?;
 
+    // elvs (build 14): test builds never show the update notice (they would always look older).
+    if is_elvs_update_channel() && (elvs_is_test_build() || elvs_build_number() == 0) {
+        clear_software_update_url();
+        return Ok(());
+    }
     let is_newer = if is_elvs_update_channel() {
         let (_, latest_build) = parse_elvs_release_id(&release_id)?;
         (get_version_number(&latest_release_version), latest_build)

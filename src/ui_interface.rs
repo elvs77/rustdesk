@@ -798,14 +798,21 @@ pub fn current_is_wayland() -> bool {
 
 #[inline]
 pub fn get_new_version() -> String {
-    SOFTWARE_UPDATE_URL
+    let id = SOFTWARE_UPDATE_URL
         .lock()
         .unwrap()
         .trim_end_matches('/')
         .rsplit('/')
         .next()
         .unwrap_or("")
-        .to_owned()
+        .to_owned();
+    // elvs (build 14): show "1.5.1.15" instead of the release id "elvs-1.5.1-15"
+    if crate::common::is_elvs_update_channel() {
+        if let Ok((base, build)) = crate::common::parse_elvs_release_id(&id) {
+            return crate::common::elvs_version_text(base, build, false);
+        }
+    }
+    id
 }
 
 #[inline]

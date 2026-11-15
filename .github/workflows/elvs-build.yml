@@ -136,6 +136,8 @@ jobs:
     runs-on: windows-2022
     env:
       ELVS_BUILD: ${{ needs.prepare.outputs.build }}
+      # elvs (build 14): runs without release are test builds ("1.5.1.14 TEST", no update notice)
+      ELVS_TEST: ${{ needs.prepare.outputs.release == 'true' && '0' || '1' }}
       ELVS_TARGET: x86_64-pc-windows-msvc
       ELVS_ARCH: x86_64
       ELVS_VCPKG_TRIPLET: x64-windows-static
@@ -323,6 +325,8 @@ jobs:
     needs: [prepare, generate-bridge]
     env:
       ELVS_BUILD: ${{ needs.prepare.outputs.build }}
+      # elvs (build 14): runs without release are test builds ("1.5.1.14 TEST", no update notice)
+      ELVS_TEST: ${{ needs.prepare.outputs.release == 'true' && '0' || '1' }}
     strategy:
       fail-fast: false
       matrix:

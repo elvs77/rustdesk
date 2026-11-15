@@ -91,6 +91,9 @@ fn install_android_deps() {
 }
 
 fn main() {
+    // elvs (build 14): rebuild when build number / test flag change (option_env! in src/common.rs)
+    println!("cargo:rerun-if-env-changed=ELVS_BUILD");
+    println!("cargo:rerun-if-env-changed=ELVS_TEST");
     hbb_common::gen_version();
     install_android_deps();
     #[cfg(all(windows, feature = "inline"))]
