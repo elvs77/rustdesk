@@ -3055,7 +3055,7 @@ impl Connection {
             // elvs (build 15): the same technician window reconnecting after a logoff, a user
             // switch or a restart comes back in on the approval the customer already gave,
             // also at the login screen where nobody could click again. See elvs_grant.rs.
-            if lr.union.is_none() && super::elvs_grant::check(&lr.my_id, lr.session_id) {
+            if self.lr.union.is_none() && super::elvs_grant::check(&lr.my_id, lr.session_id) {
                 log::info!("elvs: Wiederverbindung von {} mit bestehender Freigabe", lr.my_id);
                 self.set_conn_audit_primary_auth(ConnAuditPrimaryAuth::Click);
                 if !self.send_logon_response_and_keep_alive().await {
