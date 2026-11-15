@@ -1022,7 +1022,9 @@ class FfiModel with ChangeNotifier {
       } else {
         final elapsed =
             DateTime.now().difference(_offlineReconnectStartTime!).inSeconds;
-        if (elapsed < 30) {
+        // elvs (build 15): keep trying for as long as the customer's approval lasts
+        // (15 minutes after the drop), so a restart with updates comes back on its own.
+        if (elapsed < 15 * 60) {
           return true;
         }
       }
@@ -1096,7 +1098,9 @@ class FfiModel with ChangeNotifier {
       _timer = Timer(Duration(seconds: _reconnects), () {
         reconnect(dialogManager, sessionId, false);
       });
-      _reconnects *= 2;
+      // elvs (build 15): retry at least every 15 seconds instead of doubling without end,
+      // so the session is back soon after the customer's PC has restarted.
+      _reconnects = _reconnects * 2 > 15 ? 15 : _reconnects * 2;
     } else {
       _reconnects = 1;
       _offlineReconnectStartTime = null;

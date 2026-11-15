@@ -71,6 +71,7 @@ pub mod input_service {
 }
 
 mod connection;
+pub mod elvs_grant;
 mod login_failure_check;
 pub(crate) mod port_forward_mux;
 pub mod display_service;

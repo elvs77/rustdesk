@@ -759,6 +759,10 @@ impl Connection {
                             if !conn.send_logon_response_and_keep_alive().await {
                                 break;
                             }
+                            // elvs (build 15): the approval outlives logoff, user switch and restart.
+                            if conn.authorized && conn.lr.union.is_none() {
+                                super::elvs_grant::remember(&conn.lr.my_id, conn.lr.session_id);
+                            }
                             if conn.port_forward_socket.is_some() {
                                 break;
                             }
@@ -766,6 +770,8 @@ impl Connection {
                         ipc::Data::Close => {
                             conn.chat_unanswered = false; // seen
                             conn.file_transferred = false; //seen
+                            // elvs (build 15): "Trennen" by the customer ends the approval at once.
+                            super::elvs_grant::revoke(&conn.lr.my_id, conn.lr.session_id);
                             conn.send_close_reason_no_retry("").await;
                             conn.on_close("connection manager", true).await;
                             break;
@@ -1172,6 +1178,9 @@ impl Connection {
                 _ = second_timer.tick() => {
                     #[cfg(windows)]
                     conn.portable_check();
+                    if conn.authorized && conn.lr.union.is_none() {
+                        super::elvs_grant::renew(&conn.lr.my_id, conn.lr.session_id);
+                    }
                     raii::AuthedConnID::check_wake_lock_on_setting_changed();
                     if let Some((instant, minute)) = conn.auto_disconnect_timer.as_ref() {
                         if instant.elapsed().as_secs() > minute * 60 {
@@ -3043,6 +3052,21 @@ impl Connection {
                 crate::get_builtin_option(keys::OPTION_ALLOW_LOGON_SCREEN_PASSWORD) == "Y"
                     && is_logon();
 
+            // elvs (build 15): the same technician window reconnecting after a logoff, a user
+            // switch or a restart comes back in on the approval the customer already gave,
+            // also at the login screen where nobody could click again. See elvs_grant.rs.
+            if lr.union.is_none() && super::elvs_grant::check(&lr.my_id, lr.session_id) {
+                log::info!("elvs: Wiederverbindung von {} mit bestehender Freigabe", lr.my_id);
+                self.set_conn_audit_primary_auth(ConnAuditPrimaryAuth::Click);
+                if !self.send_logon_response_and_keep_alive().await {
+                    return false;
+                }
+                if self.authorized {
+                    super::elvs_grant::remember(&lr.my_id, lr.session_id);
+                }
+                self.try_start_cm(lr.my_id.clone(), lr.my_name.clone(), self.authorized);
+                return true;
+            }
             if (password::approve_mode() == ApproveMode::Click && !allow_logon_screen_password)
                 || password::approve_mode() == ApproveMode::Both && !password::has_valid_password()
             {

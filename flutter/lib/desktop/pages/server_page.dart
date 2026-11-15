@@ -1034,6 +1034,20 @@ class _CmControlPanel extends StatelessWidget {
             textColor: Colors.white,
           ),
         ),
+        // elvs (build 15): tell the customer that the approval outlives a logoff or restart.
+        Offstage(
+          offstage: client.type_() != ClientType.remote,
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Text(
+              'Freigabe aktiv: Nach Abmelden, Benutzerwechsel oder Neustart darf sich '
+              'der Techniker 15 Minuten lang ohne erneute Bestätigung wieder verbinden. '
+              '\u201eTrennen\u201c beendet die Freigabe sofort.',
+              style: const TextStyle(fontSize: 11, color: Colors.grey),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
         Row(
           children: [
             Expanded(
