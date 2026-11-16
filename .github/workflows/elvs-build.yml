@@ -501,6 +501,11 @@ jobs:
           # elvs (Build 12): Windows nur noch als MSI - die EXE installiert sich an der MSI vorbei
           # und hinterliess doppelte Eintraege in der Programmliste
           rm -f elvs-fernwartung-*.exe
+          # elvs (Build 15): kein eigener Apple-Silicon-Build (siehe macOS-Job); die Webseite
+          # verlinkt aber "aarch64.dmg". Das Intel-DMG laeuft dort per Rosetta, also unter beiden Namen.
+          if [ -f elvs-fernwartung-x86_64.dmg ] && [ ! -f elvs-fernwartung-aarch64.dmg ]; then
+            cp elvs-fernwartung-x86_64.dmg elvs-fernwartung-aarch64.dmg
+          fi
           ls -l
           python3 - <<'PY'
           import datetime, hashlib, json, os
@@ -601,6 +606,7 @@ jobs:
           |---|---|
           | elvs-fernwartung-x86_64.msi | Windows 64-bit (MSI-Installer) |
           | elvs-fernwartung-x86_64.dmg | macOS Intel |
+          | elvs-fernwartung-aarch64.dmg | macOS Apple-Chip (M1–M4, läuft per Rosetta) |
           EOF
           # Create as draft first, so "latest" never points to a release without assets.
           # only the files that exist (a missing macOS build must not stop the Windows release)
