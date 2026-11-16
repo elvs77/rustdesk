@@ -134,8 +134,9 @@ pub fn check(peer_id: &str, session_id: u64) -> bool {
         .any(|g| g.session == hash && g.peer_id == peer_id)
 }
 
-/// Called every second by a running connection: renews an existing approval now and then,
-/// so it is still valid `GRANT_MINUTES` after the connection drops. Never creates one.
+/// Called every second by a running, authorised remote-desktop connection (accepted by click
+/// or logged in with the password): keeps an approval for this window and renews it now and
+/// then, so it is still valid `GRANT_MINUTES` after the connection drops.
 pub fn renew(peer_id: &str, session_id: u64) {
     if !valid_session(peer_id, session_id) {
         return;
@@ -151,16 +152,25 @@ pub fn renew(peer_id: &str, session_id: u64) {
     }
     let _l = LOCK.lock().unwrap();
     let mut grants = live(load());
-    let mut changed = false;
+    let mut found = false;
     for g in grants.iter_mut() {
         if g.session == hash && g.peer_id == peer_id {
             g.expires = now() + GRANT_SECS;
-            changed = true;
+            found = true;
         }
     }
-    if changed {
-        store(&grants);
+    if !found {
+        grants.push(Grant {
+            peer_id: peer_id.to_owned(),
+            session: hash.clone(),
+            expires: now() + GRANT_SECS,
+        });
+        log::info!(
+            "elvs: Freigabe fuer {} angelegt (Anmeldung mit Passwort)",
+            peer_id
+        );
     }
+    store(&grants);
 }
 
 /// The customer ended the connection: the approval ends with it.

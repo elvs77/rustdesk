@@ -5027,6 +5027,13 @@ pub trait Interface: Send + Clone + 'static + Sized {
             }
         }
 
+        // elvs (build 15): a session that was already running and drops (logoff, user switch,
+        // restart on the customer's PC) is retried automatically as a normal connection error
+        // instead of only offering "connect via relay", so the window comes back on its own.
+        if relay_hint && received && crate::common::is_elvs_update_channel() {
+            relay_hint = false;
+        }
+
         // relay-hint
         if cfg!(feature = "flutter") && relay_hint {
             self.msgbox(relay_hint_type, title, &text, "");
