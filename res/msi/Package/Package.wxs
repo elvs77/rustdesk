@@ -49,7 +49,8 @@
 
 		</InstallExecuteSequence>
 
-		<MajorUpgrade DowngradeErrorMessage="!(loc.DowngradeError)" Schedule="afterInstallInitialize" AllowSameVersionUpgrades="yes" />
+		<!-- elvs (Build 16): auch eine neuere RustDesk-Version (gleiche UpgradeCode) wird ersetzt statt die Installation zu blockieren -->
+		<MajorUpgrade AllowDowngrades="yes" Schedule="afterInstallInitialize" />
 
 		<Feature Id="App" Level="1" AllowAdvertise="no" Display="expand" Title="!(loc.F_App)" Description="!(loc.F_App_Desc)" AllowAbsent="no">
 			<ComponentGroupRef Id="Components" />

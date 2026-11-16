@@ -2001,6 +2001,11 @@ impl Connection {
                 "supported_privacy_mode_impl".into(),
                 json!(privacy_mode::get_supported_privacy_mode_impl()),
             );
+            // elvs (build 16): other remote-support tools on this machine, for the technician
+            let fremd = crate::platform::windows::elvs_fremde_fernwartung();
+            if !fremd.is_empty() {
+                platform_additions.insert("elvs_fremd".into(), json!(fremd));
+            }
         }
         #[cfg(target_os = "macos")]
         {

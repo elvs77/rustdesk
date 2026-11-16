@@ -1179,11 +1179,10 @@ static BOOL ElvsRunAndWait(LPWSTR cmdline, DWORD timeoutMs)
     return w == WAIT_OBJECT_0;
 }
 
-static void ElvsCleanView(REGSAM view)
+static void ElvsCleanView(HKEY hive, LPCWSTR root, REGSAM view)
 {
-    const wchar_t* root = L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall";
     HKEY hRoot = NULL;
-    if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, root, 0, KEY_READ | view, &hRoot) != ERROR_SUCCESS) return;
+    if (RegOpenKeyExW(hive, root, 0, KEY_READ | view, &hRoot) != ERROR_SUCCESS) return;
 
     // Namen erst sammeln, weil beim Entfernen Schluessel wegfallen
     wchar_t names[64][256];
@@ -1250,7 +1249,7 @@ static void ElvsCleanView(REGSAM view)
 
         // Eintrag in der Programmliste entfernen, falls die Deinstallation ihn stehen liess
         HKEY hDel = NULL;
-        if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, root, 0, KEY_READ | KEY_WRITE | DELETE | view, &hDel) == ERROR_SUCCESS) {
+        if (RegOpenKeyExW(hive, root, 0, KEY_READ | KEY_WRITE | DELETE | view, &hDel) == ERROR_SUCCESS) {
             LSTATUS st = RegDeleteTreeW(hDel, names[i]);
             if (st == ERROR_SUCCESS) {
                 WcaLog(LOGMSG_STANDARD, "elvs: Eintrag %ls entfernt", names[i]);
@@ -1261,6 +1260,183 @@ static void ElvsCleanView(REGSAM view)
     RegCloseKey(hRoot);
 }
 
+// ===================== elvs (Build 16): gruendlicher aufraeumen =====================
+// Zusaetzlich zu den Eintraegen in der Programmliste des Rechners: Installationen nur fuer
+// einzelne Benutzer, laufende (auch portable) RustDesk-Programme, uebrig gebliebene
+// RustDesk-Dienste und alte Verknuepfungen namens "RustDesk". Der neue Client wird erst
+// danach kopiert und legt seinen Dienst selbst neu an.
+
+static const wchar_t* ELVS_UNINST = L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall";
+
+// Programmliste aller geladenen Benutzerprofile (HKEY_USERS\<SID>\...\Uninstall)
+static void ElvsCleanUsers()
+{
+    for (DWORD i = 0;; i++) {
+        wchar_t sid[256] = { 0 };
+        DWORD cch = 256;
+        LSTATUS st = RegEnumKeyExW(HKEY_USERS, i, sid, &cch, NULL, NULL, NULL, NULL);
+        if (st == ERROR_NO_MORE_ITEMS) break;
+        if (st != ERROR_SUCCESS) continue;
+        if (StrStrIW(sid, L"_Classes")) continue;
+        wchar_t path[600];
+        StringCchPrintfW(path, 600, L"%ls\\%ls", sid, ELVS_UNINST);
+        ElvsCleanView(HKEY_USERS, path, 0);
+    }
+}
+
+// Alle laufenden Programme mit "rustdesk" im Namen beenden (auch portable Versionen)
+static void ElvsKillRustDeskProcesses()
+{
+    DWORD self = GetCurrentProcessId();
+    HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snap == INVALID_HANDLE_VALUE) return;
+    PROCESSENTRY32W pe = { 0 };
+    pe.dwSize = sizeof(pe);
+    if (Process32FirstW(snap, &pe)) {
+        do {
+            if (pe.th32ProcessID == self || pe.th32ProcessID == 0) continue;
+            if (!StrStrIW(pe.szExeFile, L"rustdesk")) continue;
+            HANDLE h = OpenProcess(PROCESS_TERMINATE, FALSE, pe.th32ProcessID);
+            if (h) {
+                BOOL ok = TerminateProcess(h, 0);
+                WcaLog(LOGMSG_STANDARD, "elvs: Prozess %ls (%lu) beendet: %d", pe.szExeFile, pe.th32ProcessID, ok);
+                CloseHandle(h);
+            }
+        } while (Process32NextW(snap, &pe));
+    }
+    CloseHandle(snap);
+}
+
+// Dienste, deren Programm "rustdesk" im Pfad hat, anhalten und entfernen
+static void ElvsRemoveRustDeskServices()
+{
+    SC_HANDLE scm = OpenSCManagerW(NULL, NULL, SC_MANAGER_ENUMERATE_SERVICE | SC_MANAGER_CONNECT);
+    if (!scm) return;
+    DWORD needed = 0, count = 0, resume = 0;
+    EnumServicesStatusExW(scm, SC_ENUM_PROCESS_INFO, SERVICE_WIN32, SERVICE_STATE_ALL, NULL, 0, &needed, &count, &resume, NULL);
+    if (needed == 0) { CloseServiceHandle(scm); return; }
+    BYTE* buf = (BYTE*)malloc(needed);
+    if (!buf) { CloseServiceHandle(scm); return; }
+    resume = 0;
+    if (EnumServicesStatusExW(scm, SC_ENUM_PROCESS_INFO, SERVICE_WIN32, SERVICE_STATE_ALL, buf, needed, &needed, &count, &resume, NULL)) {
+        ENUM_SERVICE_STATUS_PROCESSW* svc = (ENUM_SERVICE_STATUS_PROCESSW*)buf;
+        for (DWORD i = 0; i < count; i++) {
+            SC_HANDLE h = OpenServiceW(scm, svc[i].lpServiceName, SERVICE_QUERY_CONFIG | SERVICE_STOP | DELETE | SERVICE_QUERY_STATUS);
+            if (!h) continue;
+            DWORD cb = 0;
+            QueryServiceConfigW(h, NULL, 0, &cb);
+            QUERY_SERVICE_CONFIGW* cfg = cb ? (QUERY_SERVICE_CONFIGW*)malloc(cb) : NULL;
+            if (cfg && QueryServiceConfigW(h, cfg, cb, &cb) && cfg->lpBinaryPathName && StrStrIW(cfg->lpBinaryPathName, L"rustdesk")) {
+                SERVICE_STATUS ss = { 0 };
+                ControlService(h, SERVICE_CONTROL_STOP, &ss);
+                for (int t = 0; t < 20; t++) {
+                    if (!QueryServiceStatus(h, &ss) || ss.dwCurrentState == SERVICE_STOPPED) break;
+                    Sleep(500);
+                }
+                BOOL del = DeleteService(h);
+                WcaLog(LOGMSG_STANDARD, "elvs: Dienst %ls (%ls) entfernt: %d", svc[i].lpServiceName, cfg->lpBinaryPathName, del);
+            }
+            if (cfg) free(cfg);
+            CloseServiceHandle(h);
+        }
+    }
+    free(buf);
+    CloseServiceHandle(scm);
+}
+
+// Alte Verknuepfungen "RustDesk*.lnk" in einem Ordner loeschen
+static void ElvsDeleteLinks(LPCWSTR dir)
+{
+    if (!dir || !*dir) return;
+    wchar_t pattern[MAX_PATH];
+    if (FAILED(StringCchPrintfW(pattern, MAX_PATH, L"%ls\\RustDesk*.lnk", dir))) return;
+    WIN32_FIND_DATAW fd;
+    HANDLE f = FindFirstFileW(pattern, &fd);
+    if (f == INVALID_HANDLE_VALUE) return;
+    do {
+        wchar_t full[MAX_PATH];
+        if (SUCCEEDED(StringCchPrintfW(full, MAX_PATH, L"%ls\\%ls", dir, fd.cFileName))) {
+            BOOL ok = DeleteFileW(full);
+            WcaLog(LOGMSG_STANDARD, "elvs: Verknuepfung %ls entfernt: %d", full, ok);
+        }
+    } while (FindNextFileW(f, &fd));
+    FindClose(f);
+}
+
+// Startmenue-Ordner "RustDesk" (nur Verknuepfungen darin) entfernen
+static void ElvsDeleteStartMenuFolder(LPCWSTR programs)
+{
+    if (!programs || !*programs) return;
+    wchar_t dir[MAX_PATH];
+    if (FAILED(StringCchPrintfW(dir, MAX_PATH, L"%ls\\RustDesk", programs))) return;
+    if (GetFileAttributesW(dir) == INVALID_FILE_ATTRIBUTES) return;
+    wchar_t pattern[MAX_PATH];
+    StringCchPrintfW(pattern, MAX_PATH, L"%ls\\*.lnk", dir);
+    WIN32_FIND_DATAW fd;
+    HANDLE f = FindFirstFileW(pattern, &fd);
+    if (f != INVALID_HANDLE_VALUE) {
+        do {
+            wchar_t full[MAX_PATH];
+            if (SUCCEEDED(StringCchPrintfW(full, MAX_PATH, L"%ls\\%ls", dir, fd.cFileName))) DeleteFileW(full);
+        } while (FindNextFileW(f, &fd));
+        FindClose(f);
+    }
+    BOOL ok = RemoveDirectoryW(dir);
+    WcaLog(LOGMSG_STANDARD, "elvs: Startmenue-Ordner %ls entfernt: %d", dir, ok);
+}
+
+static void ElvsReadPath(HKEY hive, LPCWSTR key, LPCWSTR name, LPWSTR out, DWORD cch)
+{
+    out[0] = L'\0';
+    HKEY h = NULL;
+    if (RegOpenKeyExW(hive, key, 0, KEY_READ, &h) != ERROR_SUCCESS) return;
+    wchar_t raw[MAX_PATH] = { 0 };
+    ElvsReadRegString(h, name, raw, MAX_PATH);
+    RegCloseKey(h);
+    if (raw[0]) ExpandEnvironmentStringsW(raw, out, cch);
+}
+
+static void ElvsCleanShortcuts()
+{
+    const wchar_t* shellAll = L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Shell Folders";
+    wchar_t p[MAX_PATH];
+    // fuer alle Benutzer
+    ElvsReadPath(HKEY_LOCAL_MACHINE, shellAll, L"Common Desktop", p, MAX_PATH); ElvsDeleteLinks(p);
+    ElvsReadPath(HKEY_LOCAL_MACHINE, shellAll, L"Common Programs", p, MAX_PATH); ElvsDeleteLinks(p); ElvsDeleteStartMenuFolder(p);
+    ElvsReadPath(HKEY_LOCAL_MACHINE, shellAll, L"Common Startup", p, MAX_PATH); ElvsDeleteLinks(p);
+    // jedes geladene Benutzerprofil (beachtet umgeleitete Desktop-Ordner)
+    for (DWORD i = 0;; i++) {
+        wchar_t sid[256] = { 0 };
+        DWORD cch = 256;
+        LSTATUS st = RegEnumKeyExW(HKEY_USERS, i, sid, &cch, NULL, NULL, NULL, NULL);
+        if (st == ERROR_NO_MORE_ITEMS) break;
+        if (st != ERROR_SUCCESS || StrStrIW(sid, L"_Classes")) continue;
+        wchar_t key[600];
+        StringCchPrintfW(key, 600, L"%ls\\%ls", sid, shellAll);
+        ElvsReadPath(HKEY_USERS, key, L"Desktop", p, MAX_PATH); ElvsDeleteLinks(p);
+        ElvsReadPath(HKEY_USERS, key, L"Programs", p, MAX_PATH); ElvsDeleteLinks(p); ElvsDeleteStartMenuFolder(p);
+        ElvsReadPath(HKEY_USERS, key, L"Startup", p, MAX_PATH); ElvsDeleteLinks(p);
+    }
+    // nicht angemeldete Benutzer: Standard-Desktop im Profilordner
+    HKEY hList = NULL;
+    if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\ProfileList", 0, KEY_READ, &hList) == ERROR_SUCCESS) {
+        for (DWORD i = 0;; i++) {
+            wchar_t sid[256] = { 0 };
+            DWORD cch = 256;
+            LSTATUS st = RegEnumKeyExW(hList, i, sid, &cch, NULL, NULL, NULL, NULL);
+            if (st == ERROR_NO_MORE_ITEMS) break;
+            if (st != ERROR_SUCCESS) continue;
+            wchar_t prof[MAX_PATH];
+            ElvsReadPath(hList, sid, L"ProfileImagePath", prof, MAX_PATH);
+            if (!prof[0]) continue;
+            StringCchPrintfW(p, MAX_PATH, L"%ls\\Desktop", prof); ElvsDeleteLinks(p);
+            StringCchPrintfW(p, MAX_PATH, L"%ls\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs", prof); ElvsDeleteLinks(p); ElvsDeleteStartMenuFolder(p);
+            StringCchPrintfW(p, MAX_PATH, L"%ls\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup", prof); ElvsDeleteLinks(p);
+        }
+        RegCloseKey(hList);
+    }
+}
+
 UINT __stdcall ElvsRemoveOldInstalls(__in MSIHANDLE hInstall)
 {
     HRESULT hr = S_OK;
@@ -1269,8 +1445,13 @@ UINT __stdcall ElvsRemoveOldInstalls(__in MSIHANDLE hInstall)
     hr = WcaInitialize(hInstall, "ElvsRemoveOldInstalls");
     ExitOnFailure(hr, "Failed to initialize");
 
-    ElvsCleanView(KEY_WOW64_64KEY);
-    ElvsCleanView(KEY_WOW64_32KEY);
+    ElvsCleanView(HKEY_LOCAL_MACHINE, ELVS_UNINST, KEY_WOW64_64KEY);
+    ElvsCleanView(HKEY_LOCAL_MACHINE, ELVS_UNINST, KEY_WOW64_32KEY);
+    // elvs (Build 16)
+    ElvsCleanUsers();
+    ElvsKillRustDeskProcesses();
+    ElvsRemoveRustDeskServices();
+    ElvsCleanShortcuts();
 
 LExit:
     er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;

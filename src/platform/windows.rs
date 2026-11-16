@@ -4977,3 +4977,125 @@ ProcessId=10136
         assert_eq!(pids.len(), 0);
     }
 }
+
+/// elvs (build 16): other remote-support tools on this machine, shown to the technician only
+/// (never to the customer) when he connects. Nothing is removed. A second RustDesk next to
+/// ours is listed as well. Checked at most once a minute.
+pub fn elvs_fremde_fernwartung() -> Vec<String> {
+    use std::time::{Duration, Instant};
+    lazy_static::lazy_static! {
+        static ref CACHE: std::sync::Mutex<Option<(Instant, Vec<String>)>> = Default::default();
+    }
+    if let Some((t, v)) = CACHE.lock().unwrap().as_ref() {
+        if t.elapsed() < Duration::from_secs(60) {
+            return v.clone();
+        }
+    }
+    let v = elvs_fremde_fernwartung_suchen();
+    *CACHE.lock().unwrap() = Some((Instant::now(), v.clone()));
+    v
+}
+
+fn elvs_fremd_name(text: &str) -> Option<&'static str> {
+    // (search term in lower case, name shown to the technician)
+    const LISTE: &[(&str, &str)] = &[
+        ("teamviewer", "TeamViewer"),
+        ("anydesk", "AnyDesk"),
+        ("splashtop", "Splashtop"),
+        ("chrome remote desktop", "Chrome Remote Desktop"),
+        ("remoting_host", "Chrome Remote Desktop"),
+        ("screenconnect", "ScreenConnect"),
+        ("connectwise control", "ScreenConnect"),
+        ("logmein", "LogMeIn"),
+        ("gotoassist", "GoTo Resolve"),
+        ("goto resolve", "GoTo Resolve"),
+        ("zoho assist", "Zoho Assist"),
+        ("zohoassist", "Zoho Assist"),
+        ("remotepc", "RemotePC"),
+        ("supremo", "Supremo"),
+        ("ammyy", "Ammyy Admin"),
+        ("ultraviewer", "UltraViewer"),
+        ("realvnc", "VNC"),
+        ("vnc server", "VNC"),
+        ("tightvnc", "VNC"),
+        ("ultravnc", "VNC"),
+        ("tvnserver", "VNC"),
+        ("winvnc", "VNC"),
+        ("dwservice", "DWService"),
+        ("dwagent", "DWService"),
+        ("hoptodesk", "HopToDesk"),
+        ("parsec", "Parsec"),
+        ("netsupport", "NetSupport"),
+        ("rustdesk", "zweites RustDesk"),
+    ];
+    let t = text.to_lowercase();
+    LISTE.iter().find(|(k, _)| t.contains(k)).map(|(_, n)| *n)
+}
+
+fn elvs_fremde_fernwartung_suchen() -> Vec<String> {
+    let mut gefunden: Vec<String> = Vec::new();
+    let mut add = |n: &str| {
+        if !gefunden.iter().any(|x| x == n) {
+            gefunden.push(n.to_owned());
+        }
+    };
+    // Programs list: machine (64 and 32 bit) and every loaded user profile
+    let uninst = "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall";
+    let mut wurzeln: Vec<RegKey> = Vec::new();
+    let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+    for flag in [KEY_WOW64_64KEY, KEY_WOW64_32KEY] {
+        if let Ok(k) = hklm.open_subkey_with_flags(uninst, KEY_READ | flag) {
+            wurzeln.push(k);
+        }
+    }
+    let hku = RegKey::predef(HKEY_USERS);
+    for sid in hku.enum_keys().flatten() {
+        if sid.ends_with("_Classes") {
+            continue;
+        }
+        if let Ok(k) = hku.open_subkey_with_flags(format!("{}\\{}", sid, uninst), KEY_READ) {
+            wurzeln.push(k);
+        }
+    }
+    for w in wurzeln.iter() {
+        for sub in w.enum_keys().flatten() {
+            if let Ok(k) = w.open_subkey_with_flags(&sub, KEY_READ) {
+                let name: String = k.get_value("DisplayName").unwrap_or_default();
+                if name.is_empty() {
+                    continue;
+                }
+                // our own client is listed as "Elvs IT-Support"
+                let klein = name.to_lowercase();
+                if klein.contains("elvs") || klein.contains("printer") || klein.contains("driver") {
+                    continue;
+                }
+                if let Some(n) = elvs_fremd_name(&name) {
+                    add(n);
+                }
+            }
+        }
+    }
+    // Running programs (also portable ones that are not installed)
+    let eigener_ordner = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.to_string_lossy().to_lowercase()))
+        .unwrap_or_default();
+    let mut sys = System::new();
+    sys.refresh_processes();
+    for (_, p) in sys.processes().iter() {
+        let name = p.name().to_lowercase();
+        if let Some(n) = elvs_fremd_name(&name) {
+            if n == "zweites RustDesk" {
+                let pfad = p.exe().to_string_lossy().to_lowercase();
+                if pfad.is_empty()
+                    || (!eigener_ordner.is_empty() && pfad.starts_with(&eigener_ordner))
+                {
+                    continue;
+                }
+            }
+            add(n);
+        }
+    }
+    gefunden.sort();
+    gefunden
+}

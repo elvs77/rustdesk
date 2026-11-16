@@ -1884,6 +1884,31 @@ impl<T: InvokeUiSession> Interface for Session<T> {
                 crate::platform::windows::add_recent_document(&path);
             }
         }
+        // elvs (build 16): tell the technician (only him) about other remote-support tools on
+        // the customer's machine. Once per peer while this client runs, not on every reconnect.
+        if crate::common::is_elvs_update_channel() && !self.is_file_transfer() {
+            lazy_static::lazy_static! {
+                static ref ELVS_FREMD_GEZEIGT: std::sync::Mutex<std::collections::HashSet<String>> =
+                    Default::default();
+            }
+            let fremd: Vec<String> = serde_json::from_str::<serde_json::Value>(&pi.platform_additions)
+                .ok()
+                .and_then(|v| v.get("elvs_fremd").cloned())
+                .and_then(|v| serde_json::from_value(v).ok())
+                .unwrap_or_default();
+            let id = self.get_id();
+            if !fremd.is_empty() && ELVS_FREMD_GEZEIGT.lock().unwrap().insert(id) {
+                self.msgbox(
+                    "custom-nocancel-info",
+                    "Weitere Fernwartung gefunden",
+                    &format!(
+                        "Auf diesem Rechner ist noch weitere Fernwartungs-Software vorhanden:\n\n{}\n\nEs wurde nichts entfernt. Diesen Hinweis sehen nur Sie, nicht der Kunde.",
+                        fremd.join(", ")
+                    ),
+                    "",
+                );
+            }
+        }
         if !pi.windows_sessions.sessions.is_empty() {
             let selected = self
                 .lc
