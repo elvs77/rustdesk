@@ -1,6 +1,9 @@
 lazy_static::lazy_static! {
 pub static ref T: std::collections::HashMap<&'static str, &'static str> =
     [
+        ("Keep RustDesk background service", "Keep ELVS remote support running in the background"),
+        ("About RustDesk", "About ELVS remote support"),
+        ("Show RustDesk", "Show ELVS remote support"),
         ("desk_tip", "Your desktop can be accessed with this ID and password."),
         ("elvs-unauffaellig", "Connect discreetly"),
         ("elvs-unauffaellig-tip", "Unticked: you join the customer's session, the customer sees your mouse and every step. Ticked: you choose the Windows session yourself, e.g. a separate RDP session the customer does not see."),
@@ -157,7 +160,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("identical_file_tip", "This file is identical with the peer's one."),
         ("show_monitors_tip", "Show monitors in toolbar"),
         ("View Mode", "View mode"),
-        ("verify_rustdesk_password_tip", "Verify RustDesk password"),
+        ("verify_rustdesk_password_tip", "Confirm the password of the remote computer"),
         ("System Sound", "System sound"),
         ("Copy Fingerprint", "Copy fingerprint"),
         ("no fingerprints", "No fingerprints"),
