@@ -320,7 +320,7 @@ jobs:
       - name: Build msi
         run: |
           pushd ./res/msi
-          python preprocess.py --arp -d ../../rustdesk
+          python preprocess.py --arp -d ../../rustdesk --manufacturer "elvs IT-Service Consulting"
           nuget restore msi.sln
           msbuild msi.sln -p:Configuration=Release -p:Platform=x64 /p:TargetVersion=Windows10
           $msi = Get-ChildItem ./Package/bin/*/Release/*/Package.msi | Select-Object -First 1
