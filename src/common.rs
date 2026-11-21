@@ -1138,9 +1138,21 @@ pub(crate) fn elvs_version_text(base: &str, build: u32, test: bool) -> String {
     if test { format!("{} TEST", v) } else { v }
 }
 
+/// elvs (16.1): own version number from the workflow, e.g. "16", "16.1", "16.7.1".
+pub(crate) fn elvs_version_name() -> Option<&'static str> {
+    option_env!("ELVS_VERSION")
+        .map(|v| v.trim())
+        .filter(|v| !v.is_empty() && v.split('.').all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit())))
+}
+
 /// elvs (build 14): version text of the running client.
+/// elvs (16.1): "16.1" (or "16.1 TEST") when ELVS_VERSION is set, otherwise as before ("1.5.1.14").
 pub(crate) fn elvs_own_version_text() -> String {
-    elvs_version_text(crate::VERSION, elvs_build_number(), elvs_is_test_build() || elvs_build_number() == 0)
+    let test = elvs_is_test_build() || elvs_build_number() == 0;
+    if let Some(v) = elvs_version_name() {
+        return if test { format!("{} TEST", v) } else { v.to_owned() };
+    }
+    elvs_version_text(crate::VERSION, elvs_build_number(), test)
 }
 
 /// Splits "elvs-1.5.1-2" into ("1.5.1", 2).

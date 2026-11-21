@@ -24,6 +24,10 @@ on:
         description: "Publish a GitHub release (update for all installed clients)"
         type: boolean
         default: false
+      elvs_version:
+        description: "elvs version shown everywhere, e.g. 16.1 (empty = build number, e.g. 16)"
+        type: string
+        default: ""
 
 concurrency:
   group: elvs-build-${{ github.ref }}-${{ (inputs.release || startsWith(github.ref, 'refs/tags/')) && 'release' || 'build' }}
@@ -63,6 +67,7 @@ jobs:
       build: ${{ steps.v.outputs.build }}
       tag: ${{ steps.v.outputs.tag }}
       release: ${{ steps.v.outputs.release }}
+      elvs_version: ${{ steps.v.outputs.elvs_version }}
     steps:
       - name: Checkout source code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -74,6 +79,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
           INPUT_RELEASE: ${{ inputs.release }}
+          INPUT_ELVS_VERSION: ${{ inputs.elvs_version }}
         run: |
           set -euo pipefail
           version=$(sed -n 's/^version *= *"\([0-9.]*\)".*/\1/p' Cargo.toml | head -n 1)
@@ -110,12 +116,22 @@ jobs:
             } | grep -E "^elvs-${version//./\\.}-[0-9]+$" | sed 's/.*-//' | sort -n | tail -n 1 || true)
             build=$(( ${existing:-0} + 1 ))
           fi
-          echo "version=$version build=$build tag=$tag release=$release"
+          # elvs (16.1): own version number 16, 16.1, 16.2, 16.7.1 ... (MSI: major/minor <= 255, patch <= 65535)
+          elvs_version="${INPUT_ELVS_VERSION:-}"
+          elvs_version="${elvs_version// /}"
+          if [[ -z "$elvs_version" ]]; then elvs_version="$build"; fi
+          if [[ ! "$elvs_version" =~ ^([0-9]+)(\.([0-9]+))?(\.([0-9]+))?$ ]] \
+             || (( 10#${BASH_REMATCH[1]} < 1 || 10#${BASH_REMATCH[1]} > 255 )) \
+             || (( 10#${BASH_REMATCH[3]:-0} > 255 || 10#${BASH_REMATCH[5]:-0} > 65535 )); then
+            echo "::error::elvs version must look like 16, 16.1 or 16.7.1, got '$elvs_version'"; exit 1
+          fi
+          echo "version=$version build=$build tag=$tag release=$release elvs_version=$elvs_version"
           {
             echo "version=$version"
             echo "build=$build"
             echo "tag=$tag"
             echo "release=$release"
+            echo "elvs_version=$elvs_version"
           } >> "$GITHUB_OUTPUT"
 
   generate-bridge:
@@ -136,6 +152,7 @@ jobs:
     runs-on: windows-2022
     env:
       ELVS_BUILD: ${{ needs.prepare.outputs.build }}
+      ELVS_VERSION: ${{ needs.prepare.outputs.elvs_version }}
       # elvs (build 14): runs without release are test builds ("1.5.1.14 TEST", no update notice)
       ELVS_TEST: ${{ needs.prepare.outputs.release == 'true' && '0' || '1' }}
       ELVS_TARGET: x86_64-pc-windows-msvc
@@ -308,6 +325,8 @@ jobs:
           msbuild msi.sln -p:Configuration=Release -p:Platform=x64 /p:TargetVersion=Windows10
           $msi = Get-ChildItem ./Package/bin/*/Release/*/Package.msi | Select-Object -First 1
           mv $msi.FullName ../../SignOutput/elvs-fernwartung-${{ env.ELVS_ARCH }}.msi
+          # elvs (16.1): same MSI once more with the version in the file name
+          Copy-Item ../../SignOutput/elvs-fernwartung-${{ env.ELVS_ARCH }}.msi ../../SignOutput/elvs-it-support-${{ env.ELVS_VERSION }}.msi
           sha256sum ../../SignOutput/elvs-fernwartung-*
 
       - name: Upload Windows installers
@@ -317,6 +336,7 @@ jobs:
           path: |
             ./SignOutput/elvs-fernwartung-*.exe
             ./SignOutput/elvs-fernwartung-*.msi
+            ./SignOutput/elvs-it-support-*.msi
           if-no-files-found: error
 
   build-for-macOS:
@@ -325,6 +345,7 @@ jobs:
     needs: [prepare, generate-bridge]
     env:
       ELVS_BUILD: ${{ needs.prepare.outputs.build }}
+      ELVS_VERSION: ${{ needs.prepare.outputs.elvs_version }}
       # elvs (build 14): runs without release are test builds ("1.5.1.14 TEST", no update notice)
       ELVS_TEST: ${{ needs.prepare.outputs.release == 'true' && '0' || '1' }}
     strategy:
@@ -485,6 +506,7 @@ jobs:
       TAG: ${{ needs.prepare.outputs.tag }}
       APP_VERSION: ${{ needs.prepare.outputs.version }}
       APP_BUILD: ${{ needs.prepare.outputs.build }}
+      ELVS_VERSION: ${{ needs.prepare.outputs.elvs_version }}
     steps:
       - name: Download installers
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -544,7 +566,7 @@ jobs:
               json.dump(metadata, f, indent=2)
           PY
           cat rustdesk-update.json
-          sha256sum elvs-fernwartung-* > SHA256SUMS.txt
+          sha256sum elvs-fernwartung-* elvs-it-support-* > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
       - name: Create release
@@ -552,7 +574,13 @@ jobs:
         run: |
           set -euo pipefail
           cat > notes.md <<EOF
-          elvs Fernwartung $APP_VERSION, Build $APP_BUILD (Commit $GITHUB_SHA).
+          elvs IT-Support $ELVS_VERSION (Build $APP_BUILD, Commit $GITHUB_SHA).
+
+          Neu in 16.1: Eigene Versionsnummer (16, 16.1, 16.2 ...) statt 1.5.1.x. Das Setup ersetzt
+          jetzt jede ältere Version sauber - es stehen keine zwei Einträge mehr in der Programmliste.
+          Die RustDesk-ID bleibt beim Wechsel erhalten: das Setup sichert die alte Konfiguration
+          und spielt sie zurück, falls sie fehlt. Startseite zeigt Version und Datum.
+          Die MSI gibt es zusätzlich als elvs-it-support-$ELVS_VERSION.msi.
 
           Neu in Build 13: Behebt den Setup-Fehler 2613 beim Aktualisieren einer bereits per MSI
           installierten Version (Build 12 brach dort ab). Das Setup zeigt jetzt in jedem Fenster
@@ -604,16 +632,17 @@ jobs:
 
           | Datei | System |
           |---|---|
-          | elvs-fernwartung-x86_64.msi | Windows 64-bit (MSI-Installer) |
+          | elvs-fernwartung-x86_64.msi | Windows 64-bit (MSI-Installer, fester Link für die Webseite) |
+          | elvs-it-support-$ELVS_VERSION.msi | dieselbe MSI mit Versionsnummer im Namen |
           | elvs-fernwartung-x86_64.dmg | macOS Intel |
           | elvs-fernwartung-aarch64.dmg | macOS Apple-Chip (M1–M4, läuft per Rosetta) |
           EOF
           # Create as draft first, so "latest" never points to a release without assets.
           # only the files that exist (a missing macOS build must not stop the Windows release)
           shopt -s nullglob
-          files=(dist/elvs-fernwartung-*.msi dist/elvs-fernwartung-*.dmg)
+          files=(dist/elvs-fernwartung-*.msi dist/elvs-it-support-*.msi dist/elvs-fernwartung-*.dmg)
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --draft --title "elvs Fernwartung $APP_VERSION (Build $APP_BUILD)" --notes-file notes.md \
+            --draft --title "elvs IT-Support $ELVS_VERSION (Build $APP_BUILD)" --notes-file notes.md \
             "${files[@]}" dist/rustdesk-update.json dist/SHA256SUMS.txt
           gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json url,assets --jq '.url, (.assets[].name)'

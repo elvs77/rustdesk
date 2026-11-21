@@ -1,6 +1,7 @@
 // CustomAction.cpp : Defines the entry point for the custom action.
 #include "pch.h"
 #include <stdlib.h>
+#include <string.h>
 #include <strutil.h>
 #include <shellapi.h>
 #include <tlhelp32.h>
@@ -1437,6 +1438,118 @@ static void ElvsCleanShortcuts()
     }
 }
 
+// ===================== elvs (16.1): RustDesk-ID behalten =====================
+// Die ID haengt am Schluesselpaar in RustDesk.toml. Fehlt die Datei nach dem Wechsel, erzeugt der
+// Client ein neues Schluesselpaar, der Server meldet "UUID_MISMATCH" und der Client nimmt eine
+// zufaellige neue ID (so bei Pierre: 272080110 -> 1855439574). Deshalb: vorhandene Konfiguration
+// sichern, und wenn der Dienst keine hat, eine alte (Systemprofil, Sicherung, Benutzerprofil) zurueckspielen.
+
+static BOOL ElvsTomlHasId(LPCWSTR file)
+{
+    HANDLE h = CreateFileW(file, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+    if (h == INVALID_HANDLE_VALUE) return FALSE;
+    char buf[16384] = { 0 };
+    DWORD got = 0;
+    BOOL ok = ReadFile(h, buf, sizeof(buf) - 1, &got, NULL);
+    CloseHandle(h);
+    if (!ok || got == 0) return FALSE;
+    buf[got] = 0;
+    BOOL hasId = FALSE, hasKey = FALSE;
+    for (char* line = buf; line && *line; ) {
+        char* next = strchr(line, '\n');
+        // RustDesk speichert die ID verschluesselt als enc_id (aeltere Versionen als id)
+        const char* val = NULL;
+        if (strncmp(line, "id = ", 5) == 0) val = line + 5;
+        else if (strncmp(line, "enc_id = ", 9) == 0) val = line + 9;
+        if (val && (val[0] == '\'' || val[0] == '"') && val[1] != val[0] && val[1] != '\r' && val[1] != '\n' && val[1] != 0) hasId = TRUE;
+        if (strncmp(line, "key_pair = ", 11) == 0) hasKey = TRUE;
+        line = next ? next + 1 : NULL;
+    }
+    return hasId && hasKey;
+}
+
+static void ElvsMakeDirs(LPCWSTR base, LPCWSTR rel)
+{
+    wchar_t p[MAX_PATH];
+    if (FAILED(StringCchCopyW(p, MAX_PATH, base))) return;
+    wchar_t r[MAX_PATH];
+    if (FAILED(StringCchCopyW(r, MAX_PATH, rel))) return;
+    wchar_t* ctx = NULL;
+    for (wchar_t* part = wcstok_s(r, L"\\", &ctx); part; part = wcstok_s(NULL, L"\\", &ctx)) {
+        StringCchCatW(p, MAX_PATH, L"\\");
+        StringCchCatW(p, MAX_PATH, part);
+        CreateDirectoryW(p, NULL);
+    }
+}
+
+static void ElvsKeepRustDeskId()
+{
+    wchar_t win[MAX_PATH] = { 0 };
+    if (!GetWindowsDirectoryW(win, MAX_PATH)) return;
+    wchar_t pd[MAX_PATH] = { 0 };
+    if (!GetEnvironmentVariableW(L"ProgramData", pd, MAX_PATH)) StringCchCopyW(pd, MAX_PATH, L"C:\\ProgramData");
+
+    wchar_t target[MAX_PATH], backup[MAX_PATH], sysprof[MAX_PATH];
+    StringCchPrintfW(target, MAX_PATH, L"%ls\\ServiceProfiles\\LocalService\\AppData\\Roaming\\RustDesk\\config\\RustDesk.toml", win);
+    StringCchPrintfW(backup, MAX_PATH, L"%ls\\elvs\\id-sicherung\\RustDesk.toml", pd);
+    StringCchPrintfW(sysprof, MAX_PATH, L"%ls\\System32\\config\\systemprofile\\AppData\\Roaming\\RustDesk\\config\\RustDesk.toml", win);
+
+    if (ElvsTomlHasId(target)) {
+        ElvsMakeDirs(pd, L"elvs\\id-sicherung");
+        BOOL ok = CopyFileW(target, backup, FALSE);
+        WcaLog(LOGMSG_STANDARD, "elvs: ID vorhanden, Sicherung nach %ls: %d", backup, ok);
+        return;
+    }
+
+    // Kandidaten in dieser Reihenfolge: Systemprofil, eigene Sicherung, Benutzerprofile (neueste Datei)
+    wchar_t found[MAX_PATH] = { 0 };
+    if (ElvsTomlHasId(sysprof)) StringCchCopyW(found, MAX_PATH, sysprof);
+    else if (ElvsTomlHasId(backup)) StringCchCopyW(found, MAX_PATH, backup);
+    else {
+        FILETIME best = { 0 };
+        HKEY hList = NULL;
+        if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\ProfileList", 0, KEY_READ, &hList) == ERROR_SUCCESS) {
+            for (DWORD i = 0;; i++) {
+                wchar_t sid[256] = { 0 };
+                DWORD cch = 256;
+                LSTATUS st = RegEnumKeyExW(hList, i, sid, &cch, NULL, NULL, NULL, NULL);
+                if (st == ERROR_NO_MORE_ITEMS) break;
+                if (st != ERROR_SUCCESS) continue;
+                wchar_t prof[MAX_PATH];
+                ElvsReadPath(hList, sid, L"ProfileImagePath", prof, MAX_PATH);
+                if (!prof[0]) continue;
+                wchar_t cand[MAX_PATH];
+                if (FAILED(StringCchPrintfW(cand, MAX_PATH, L"%ls\\AppData\\Roaming\\RustDesk\\config\\RustDesk.toml", prof))) continue;
+                if (!ElvsTomlHasId(cand)) continue;
+                WIN32_FILE_ATTRIBUTE_DATA fa;
+                if (GetFileAttributesExW(cand, GetFileExInfoStandard, &fa) && CompareFileTime(&fa.ftLastWriteTime, &best) > 0) {
+                    best = fa.ftLastWriteTime;
+                    StringCchCopyW(found, MAX_PATH, cand);
+                }
+            }
+            RegCloseKey(hList);
+        }
+    }
+    if (!found[0]) {
+        WcaLog(LOGMSG_STANDARD, "elvs: keine alte RustDesk-ID gefunden, Client erzeugt eine neue");
+        return;
+    }
+    wchar_t ls[MAX_PATH];
+    StringCchPrintfW(ls, MAX_PATH, L"%ls\\ServiceProfiles\\LocalService", win);
+    ElvsMakeDirs(ls, L"AppData\\Roaming\\RustDesk\\config");
+    if (GetFileAttributesW(target) != INVALID_FILE_ATTRIBUTES) {
+        wchar_t old[MAX_PATH];
+        StringCchPrintfW(old, MAX_PATH, L"%ls.vor-elvs", target);
+        MoveFileExW(target, old, MOVEFILE_REPLACE_EXISTING);
+    }
+    BOOL ok = CopyFileW(found, target, FALSE);
+    WcaLog(LOGMSG_STANDARD, "elvs: alte RustDesk-ID aus %ls uebernommen: %d", found, ok);
+    if (ok) {
+        ElvsMakeDirs(pd, L"elvs\\id-sicherung");
+        CopyFileW(found, backup, FALSE);
+    }
+}
+
 UINT __stdcall ElvsRemoveOldInstalls(__in MSIHANDLE hInstall)
 {
     HRESULT hr = S_OK;
@@ -1452,6 +1565,8 @@ UINT __stdcall ElvsRemoveOldInstalls(__in MSIHANDLE hInstall)
     ElvsKillRustDeskProcesses();
     ElvsRemoveRustDeskServices();
     ElvsCleanShortcuts();
+    // elvs (16.1): ID behalten (nachdem alte Dienste beendet sind, vor dem Start des neuen Dienstes)
+    ElvsKeepRustDeskId();
 
 LExit:
     er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;

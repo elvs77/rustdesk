@@ -150,10 +150,22 @@ class _DesktopHomePageState extends State<DesktopHomePage>
               bottom: 8,
               left: isOutgoingOnly ? 44 : 14,
               child: SelectionArea(
-                child: Text(
-                  'Version ${bind.mainGetElvsVersionSync()}',
-                  style: TextStyle(
-                      fontSize: 11, color: Colors.grey.withOpacity(0.85)),
+                // elvs (16.1): version and build date, e.g. "Version 16.1 · 21.11.2026"
+                child: FutureBuilder<String>(
+                  future: bind.mainGetBuildDate(),
+                  builder: (context, snap) {
+                    var date = '';
+                    final m = RegExp(r'^(\d{4})-(\d{2})-(\d{2})')
+                        .firstMatch(snap.data ?? '');
+                    if (m != null) {
+                      date = ' · ${m.group(3)}.${m.group(2)}.${m.group(1)}';
+                    }
+                    return Text(
+                      'Version ${bind.mainGetElvsVersionSync()}$date',
+                      style: TextStyle(
+                          fontSize: 11, color: Colors.grey.withOpacity(0.85)),
+                    );
+                  },
                 ),
               ),
             ),

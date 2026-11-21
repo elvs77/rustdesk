@@ -47,11 +47,32 @@ def elvs_build():
         return 0
 
 
+def elvs_version():
+    # elvs (16.1): own version number, e.g. "16", "16.1", "16.7.1" (ELVS_VERSION from the workflow)
+    v = os.environ.get("ELVS_VERSION", "").strip()
+    if re.fullmatch(r"\d+(\.\d+){0,2}", v):
+        return v
+    return ""
+
+
+def elvs_msi_version():
+    # MSI compares only the first three parts: "16.1" -> "16.1.0", so 16.1 replaces 16 and 1.5.1.x
+    parts = [int(x) for x in elvs_version().split(".")]
+    while len(parts) < 3:
+        parts.append(0)
+    if not (1 <= parts[0] <= 255 and parts[1] <= 255 and parts[2] <= 65535):
+        raise ValueError(f"Invalid elvs version for MSI: {elvs_version()}")
+    return ".".join(str(x) for x in parts)
+
+
 def elvs_version_text():
-    # elvs (build 14): one number everywhere, e.g. "1.5.1.14", test builds "1.5.1.14 TEST"
-    base = ".".join(g_version.split(".")[:3])
+    # elvs (16.1): "16.1", test builds "16.1 TEST"; without ELVS_VERSION as before ("1.5.1.14")
     build = elvs_build()
-    text = f"{base}.{build}" if build > 0 else base
+    if elvs_version():
+        text = elvs_version()
+    else:
+        base = ".".join(g_version.split(".")[:3])
+        text = f"{base}.{build}" if build > 0 else base
     if os.environ.get("ELVS_TEST", "").strip() == "1" or build == 0:
         text += " TEST"
     return text
@@ -509,6 +530,9 @@ def init_global_vars(dist_dir, app_name, args):
         # elvs (build 14): 4th part = build number, so Windows "Apps" shows 1.5.1.14
         # (MSI upgrades only compare the first three parts, so this is safe)
         g_version = f"{g_version}.{elvs_build() or args.revision_version}"
+    # elvs (16.1): own version scheme replaces the RustDesk version in the MSI
+    if elvs_version():
+        g_version = elvs_msi_version()
 
     g_build_date = read_process_output("--build-date")
     build_date_pattern = re.compile(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}")

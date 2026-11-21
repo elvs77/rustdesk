@@ -50,6 +50,8 @@
 		</InstallExecuteSequence>
 
 		<!-- elvs (Build 16): auch eine neuere RustDesk-Version (gleiche UpgradeCode) wird ersetzt statt die Installation zu blockieren -->
+		<!-- elvs (16.1): AllowDowngrades ersetzt auch dieselbe Version (z. B. Test-Build erneut) - MSI vergleicht nur 3 Stellen,
+		     deshalb hat 16.1 jetzt die MSI-Version 16.1.0 statt 1.5.1.x (sonst lagen zwei Versionen nebeneinander) -->
 		<MajorUpgrade AllowDowngrades="yes" Schedule="afterInstallInitialize" />
 
 		<Feature Id="App" Level="1" AllowAdvertise="no" Display="expand" Title="!(loc.F_App)" Description="!(loc.F_App_Desc)" AllowAbsent="no">
