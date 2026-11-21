@@ -14,6 +14,7 @@ import 'package:flutter_hbb/common/widgets/keyboard_shortcuts/page_body.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_keyboard_shortcuts_page.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_tab_page.dart';
 import 'package:flutter_hbb/desktop/widgets/remote_toolbar.dart';
+import 'package:flutter_hbb/desktop/widgets/elvs_tech.dart';
 import 'package:flutter_hbb/mobile/widgets/dialog.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:flutter_hbb/models/printer_model.dart';
@@ -63,7 +64,12 @@ enum SettingsTabKey {
 
 class DesktopSettingPage extends StatefulWidget {
   final SettingsTabKey initialTabkey;
-  static final List<SettingsTabKey> tabKeys = [
+  // elvs (16.2): customer view shows only the card Techniker-Modus (and language) and About;
+  // a getter, because the view changes while the app runs.
+  static List<SettingsTabKey> get tabKeys => ElvsTech.customerView()
+      ? const [SettingsTabKey.general, SettingsTabKey.about]
+      : _allTabKeys;
+  static List<SettingsTabKey> get _allTabKeys => [
     if (bind.mainGetBuildinOption(key: kOptionHideGeneralSetting) != 'Y')
       SettingsTabKey.general,
     if (!isWeb &&
@@ -414,7 +420,13 @@ class _GeneralState extends State<_General> {
     final scrollController = ScrollController();
     return ListView(
       controller: scrollController,
-      children: [
+      children: ElvsTech.customerView()
+          ? [
+              _Card(title: 'Techniker-Modus', children: [ElvsTechPanel()]),
+              _Card(title: 'Language', children: [language()]),
+            ]
+          : [
+        _Card(title: 'Techniker-Modus', children: [ElvsTechPanel()]),
         if (!isWeb) service(),
         theme(),
         _Card(title: 'Language', children: [language()]),
@@ -424,7 +436,7 @@ class _GeneralState extends State<_General> {
         if (!isWeb) WaylandCard(),
         other(),
         if (!bind.isIncomingOnly()) keyboardShortcuts(),
-      ],
+            ],
     ).marginOnly(bottom: _kListViewBottomMargin);
   }
 

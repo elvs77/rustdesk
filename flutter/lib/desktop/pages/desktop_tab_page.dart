@@ -4,6 +4,7 @@ import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_home_page.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_setting_page.dart';
 import 'package:flutter_hbb/desktop/widgets/tabbar_widget.dart';
+import 'package:flutter_hbb/desktop/widgets/elvs_tech.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:flutter_hbb/models/state_model.dart';
 import 'package:get/get.dart';
@@ -52,8 +53,10 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
         page: DesktopHomePage(
           key: const ValueKey(kTabLabelHomePage),
         )));
-    if (bind.isIncomingOnly()) {
+    // elvs (16.2): the customer view can switch on and off while the app runs
+    {
       tabController.onSelected = (key) {
+        if (!bind.isIncomingOnly()) return;
         if (key == kTabLabelHomePage) {
           windowManager.setSize(getIncomingOnlyHomeSize());
           setResizable(false);
@@ -69,6 +72,25 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
   void initState() {
     super.initState();
     // HardwareKeyboard.instance.addHandler(_handleKeyEvent);
+    ElvsTech.start();
+    _elvsTechWorker = ever<bool>(ElvsTech.active, _onElvsTechChanged);
+  }
+
+  Worker? _elvsTechWorker;
+
+  // elvs (16.2): Techniker-Modus switched on or off: close the settings (their tabs depend
+  // on the view) and give the window the size of the new view.
+  void _onElvsTechChanged(bool on) {
+    tabController.closeBy(kTabLabelSettingPage);
+    if (mounted) setState(() {});
+    if (on) {
+      setResizable(true);
+      windowManager.setSize(const Size(900, 600));
+      windowManager.center();
+    } else {
+      windowManager.setSize(getIncomingOnlyHomeSize());
+      setResizable(false);
+    }
   }
 
   /*
@@ -84,6 +106,7 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
   @override
   void dispose() {
     // HardwareKeyboard.instance.removeHandler(_handleKeyEvent);
+    _elvsTechWorker?.dispose();
     Get.delete<DesktopTabController>();
 
     super.dispose();
@@ -91,7 +114,11 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
 
   @override
   Widget build(BuildContext context) {
-    final tabWidget = Container(
+    // elvs (16.2): activity in the window keeps a short Techniker-Modus unlock alive
+    final tabWidget = Listener(
+        onPointerDown: (_) => ElvsTech.touch(),
+        onPointerHover: (_) => ElvsTech.touch(),
+        child: Container(
         child: Scaffold(
             backgroundColor: Theme.of(context).colorScheme.background,
             body: DesktopTab(
@@ -105,7 +132,7 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
                   isClose: false,
                 ),
               ),
-            )));
+            ))));
     return isMacOS || kUseCompatibleUiMode
         ? tabWidget
         : Obx(

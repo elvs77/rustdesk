@@ -2559,6 +2559,11 @@ pub fn main_support_remove_wallpaper() -> bool {
 }
 
 pub fn is_incoming_only() -> SyncReturn<bool> {
+    // elvs (16.2): customer view until the technician unlocks the client
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    if crate::elvs_tech::customer_view() {
+        return SyncReturn(true);
+    }
     SyncReturn(config::is_incoming_only())
 }
 
@@ -2769,6 +2774,10 @@ pub fn main_get_printer_names() -> SyncReturn<String> {
 }
 
 pub fn main_get_common(key: String) -> String {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    if let Some(v) = crate::elvs_tech::get_common(&key) {
+        return v;
+    }
     if key == "elvs-updates-disabled" {
         return crate::common::elvs_updates_disabled().to_string();
     }
@@ -2856,6 +2865,10 @@ pub fn main_get_common_sync(key: String) -> SyncReturn<String> {
     if key.starts_with("verified-download-url-") {
         return SyncReturn("error:unsupported".to_owned());
     }
+    // elvs (16.2): these keys ask the server, only on the asynchronous path
+    if key == "elvs-tech-liste" || key.starts_with("elvs-tech-entfernen:") {
+        return SyncReturn("".to_owned());
+    }
     SyncReturn(main_get_common(key))
 }
 
@@ -2881,6 +2894,10 @@ fn verified_update_artifact_for_release_page_url(
 }
 
 pub fn main_set_common(_key: String, _value: String) {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    if crate::elvs_tech::set_common(&_key, &_value) {
+        return;
+    }
     #[cfg(target_os = "windows")]
     if _key == "install-printer" && crate::platform::is_win_10_or_greater() {
         std::thread::spawn(move || {

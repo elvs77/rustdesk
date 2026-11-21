@@ -42,6 +42,8 @@ pub mod flutter;
 #[cfg(any(target_os = "android", target_os = "ios", feature = "flutter"))]
 pub mod flutter_ffi;
 use common::*;
+#[cfg(all(feature = "flutter", not(any(target_os = "android", target_os = "ios"))))]
+mod elvs_tech;
 mod auth_2fa;
 mod trusted_devices;
 #[cfg(not(target_os = "ios"))]
