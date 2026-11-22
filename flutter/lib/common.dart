@@ -3184,6 +3184,11 @@ Future<bool> canBeBlocked() async {
     // so it should never be blocked by a remote session.
     return false;
   }
+  // elvs (16.2.3): an accepted session is always the elvs technician, who must
+  // be able to use the settings page remotely. Never block it.
+  if (isDesktop) {
+    return false;
+  }
   // First check control permission
   final controlPermission = await bind.mainGetCommon(
       key: "is-remote-modify-enabled-by-control-permissions");
