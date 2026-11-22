@@ -66,7 +66,7 @@ class DesktopSettingPage extends StatefulWidget {
   final SettingsTabKey initialTabkey;
   // elvs (16.2): customer view shows only the card Techniker-Modus (and language) and About;
   // a getter, because the view changes while the app runs.
-  static List<SettingsTabKey> get tabKeys => ElvsTech.customerView()
+  static List<SettingsTabKey> get tabKeys => ElvsTech.settingsLimited()
       ? const [SettingsTabKey.general, SettingsTabKey.about]
       : _allTabKeys;
   static List<SettingsTabKey> get _allTabKeys => [
@@ -420,7 +420,7 @@ class _GeneralState extends State<_General> {
     final scrollController = ScrollController();
     return ListView(
       controller: scrollController,
-      children: ElvsTech.customerView()
+      children: ElvsTech.settingsLimited()
           ? [
               _Card(title: 'Techniker-Modus', children: [ElvsTechPanel()]),
               _Card(title: 'Language', children: [language()]),

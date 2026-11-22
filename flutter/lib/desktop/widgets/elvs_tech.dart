@@ -14,13 +14,22 @@ import '../../models/platform_model.dart';
 
 class ElvsTech {
   static final RxBool active = RxBool(_read());
+
+  /// 16.2.1: an accepted session runs on this computer (or ended < 10 minutes ago).
+  static final RxBool session = RxBool(_readSession());
   static Timer? _timer;
   static int _lastTouch = 0;
 
   static bool _read() =>
       bind.mainGetCommonSync(key: 'elvs-tech-aktiv') == 'true';
 
+  static bool _readSession() =>
+      bind.mainGetCommonSync(key: 'elvs-tech-sitzung') == 'true';
+
   static bool customerView() => !_read();
+
+  /// Settings limited to Techniker-Modus, language and About: customer view without session.
+  static bool settingsLimited() => customerView() && !_readSession();
 
   /// Polls the state, so the 10-minute fallback also reaches an open window.
   static void start() {
@@ -32,6 +41,10 @@ class ElvsTech {
     final v = _read();
     if (v != active.value) {
       active.value = v;
+    }
+    final w = _readSession();
+    if (w != session.value) {
+      session.value = w;
     }
   }
 

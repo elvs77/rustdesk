@@ -11,6 +11,9 @@ dem Server liegt davon nur ein SHA-256-Hash.
   ohne Nutzung heraus.
 - **Kunden-PC** (ohne Haken): endet 10 Minuten nach der letzten Aktivität im Client-Fenster,
   spätestens nach 12 Stunden. Die laufende Fernwartung wird dadurch nicht getrennt.
+- **Während einer Fernwartungs-Sitzung** (ab 16.2.1): Solange eine angenommene Sitzung läuft und
+  bis 10 Minuten danach, sind die Einstellungen des Clients vollständig offen – ohne Code. Der
+  Technikbereich (Eingabefeld, Favoriten, Adressbuch) bleibt verdeckt, bis der Haken gesetzt wird.
 - Falscher Code: 5 Versuche je IP in 10 Minuten, dann Sperre. Jeder Code gilt nur einmal.
 - Keine Backup-Codes (Entscheidung 21.11.2026).
 

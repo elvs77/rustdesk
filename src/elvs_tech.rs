@@ -10,7 +10,10 @@
 //! - otherwise (customer PCs): the unlock ends 10 minutes after the last activity in the client
 //!   window and the customer view is back.
 
-use hbb_common::{config::LocalConfig, log};
+use hbb_common::{
+    config::{Config, LocalConfig},
+    log,
+};
 use std::{
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -277,11 +280,45 @@ fn remove(id: &str) -> String {
     }
 }
 
+const SESSION_FILE: &str = "elvs_sitzung";
+const SESSION_MARK_SECS: u64 = 15;
+
+/// Connection manager (16.2.1): while an accepted session runs on this computer, it writes the
+/// time into a small file every 15 seconds. The main window reads it: during the session and
+/// 10 minutes after it all settings of the client are open (the technician area stays hidden).
+pub fn start_session_marker() {
+    std::thread::spawn(|| loop {
+        let state = crate::ui_cm_interface::get_clients_state();
+        let active = serde_json::from_str::<Vec<serde_json::Value>>(&state)
+            .unwrap_or_default()
+            .iter()
+            .any(|c| {
+                c.get("authorized").and_then(|v| v.as_bool()) == Some(true)
+                    && c.get("disconnected").and_then(|v| v.as_bool()) != Some(true)
+            });
+        if active {
+            if let Err(e) = std::fs::write(Config::path(SESSION_FILE), now().to_string()) {
+                log::warn!("elvs: Sitzungsmarke nicht geschrieben: {}", e);
+            }
+        }
+        std::thread::sleep(std::time::Duration::from_secs(SESSION_MARK_SECS));
+    });
+}
+
+/// An accepted session runs on this computer, or ended less than 10 minutes ago.
+pub fn session_active() -> bool {
+    std::fs::read_to_string(Config::path(SESSION_FILE))
+        .ok()
+        .and_then(|s| s.trim().parse::<u64>().ok())
+        .map_or(false, |t| now().saturating_sub(t) <= IDLE_SECS)
+}
+
 /// Keys for main_get_common. "elvs-tech-liste" and "elvs-tech-entfernen:<id>" do network
 /// requests and must only be used on the asynchronous FFI path.
 pub fn get_common(key: &str) -> Option<String> {
     match key {
         "elvs-tech-aktiv" => Some(is_active().to_string()),
+        "elvs-tech-sitzung" => Some(session_active().to_string()),
         "elvs-tech-status" => Some(status()),
         "elvs-tech-liste" => Some(list()),
         _ => key.strip_prefix("elvs-tech-entfernen:").map(remove),

@@ -74,7 +74,13 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
     // HardwareKeyboard.instance.addHandler(_handleKeyEvent);
     ElvsTech.start();
     _elvsTechWorker = ever<bool>(ElvsTech.active, _onElvsTechChanged);
+    // 16.2.1: session ended (10 minutes ago): close the full settings again
+    _elvsSessionWorker = ever<bool>(ElvsTech.session, (on) {
+      if (!on) tabController.closeBy(kTabLabelSettingPage);
+    });
   }
+
+  Worker? _elvsSessionWorker;
 
   Worker? _elvsTechWorker;
 
@@ -107,6 +113,7 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
   void dispose() {
     // HardwareKeyboard.instance.removeHandler(_handleKeyEvent);
     _elvsTechWorker?.dispose();
+    _elvsSessionWorker?.dispose();
     Get.delete<DesktopTabController>();
 
     super.dispose();

@@ -1624,6 +1624,8 @@ pub mod connection_manager {
         let cm = ConnectionManager {
             ui_handler: FlutterHandler {},
         };
+        // elvs (16.2.1): mark running sessions for the main window
+        crate::elvs_tech::start_session_marker();
         std::thread::spawn(move || start_ipc(cm));
     }
 

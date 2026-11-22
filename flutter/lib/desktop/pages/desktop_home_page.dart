@@ -62,6 +62,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     // elvs (16.2): rebuild when the Techniker-Modus switches the view
     return Obx(() {
       ElvsTech.active.value;
+      ElvsTech.session.value;
       final isIncomingOnly = bind.isIncomingOnly();
       return _buildBlock(
           child: Row(
@@ -127,7 +128,10 @@ class _DesktopHomePageState extends State<DesktopHomePage>
               });
             }
           },
-        ).marginOnly(bottom: 6, right: 6)
+        ).marginOnly(bottom: 6, right: 6),
+        // elvs (16.2.1): version below the status, not over it
+        Align(alignment: Alignment.centerLeft, child: _elvsVersionText())
+            .marginOnly(left: 14, bottom: 8),
       ]);
     }
     final textColor = Theme.of(context).textTheme.titleLarge?.color;
@@ -151,7 +155,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
               ],
             ),
             // elvs (build 11): version and build number always visible, bottom left
-            Positioned(
+            if (!isIncomingOnly) Positioned(
               bottom: 8,
               left: isOutgoingOnly ? 44 : 14,
               child: SelectionArea(
@@ -386,7 +390,9 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                           ),
                           onHover: (value) => refreshHover.value = value,
                         ).marginOnly(right: 8, top: 4),
-                      if (!bind.isDisableSettings())
+                      // elvs (16.2.1): customers cannot set a fixed password
+                      if (!bind.isDisableSettings() &&
+                          !ElvsTech.settingsLimited())
                         InkWell(
                           child: Tooltip(
                             message: translate('Change Password'),
@@ -411,6 +417,27 @@ class _DesktopHomePageState extends State<DesktopHomePage>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // elvs (16.2.1): version line for the customer view (same text as bottom left)
+  Widget _elvsVersionText() {
+    return SelectionArea(
+      child: FutureBuilder<String>(
+        future: bind.mainGetBuildDate(),
+        builder: (context, snap) {
+          var date = '';
+          final m =
+              RegExp(r'^(\d{4})-(\d{2})-(\d{2})').firstMatch(snap.data ?? '');
+          if (m != null) {
+            date = ' · ${m.group(3)}.${m.group(2)}.${m.group(1)}';
+          }
+          return Text(
+            'Version ${bind.mainGetElvsVersionSync()}$date',
+            style: TextStyle(fontSize: 11, color: Colors.grey.withOpacity(0.85)),
+          );
+        },
       ),
     );
   }
@@ -441,7 +468,10 @@ class _DesktopHomePageState extends State<DesktopHomePage>
           ),
           if (!isOutgoingOnly)
             Text(
-              translate("desk_tip"),
+              // elvs (16.2.1): plain hint for customers
+              ElvsTech.customerView()
+                  ? 'Nennen Sie elvs diese ID, damit wir Ihnen helfen können.'
+                  : translate("desk_tip"),
               overflow: TextOverflow.clip,
               style: Theme.of(context).textTheme.bodySmall,
             ),
@@ -596,7 +626,8 @@ class _DesktopHomePageState extends State<DesktopHomePage>
         );
       }
     }
-    if (bind.isIncomingOnly()) {
+    // elvs (16.2.1): no quit button in the customer view
+    if (bind.isIncomingOnly() && !ElvsTech.customerView()) {
       return Align(
         alignment: Alignment.centerRight,
         child: OutlinedButton(
