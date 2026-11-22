@@ -31,6 +31,9 @@ class ElvsTech {
   /// Settings limited to Techniker-Modus, language and About: customer view without session.
   static bool settingsLimited() => customerView() && !_readSession();
 
+  /// RustDesk's lock of security/network settings (UAC): off for the technician.
+  static bool securityLocked() => !_read() && !_readSession();
+
   /// Polls the state, so the 10-minute fallback also reaches an open window.
   static void start() {
     _timer ??=

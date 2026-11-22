@@ -1038,7 +1038,8 @@ class _Safety extends StatefulWidget {
 class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
   @override
   bool get wantKeepAlive => true;
-  bool locked = bind.mainIsInstalled();
+  // elvs (16.2.2): unlocked for the technician (code or running session), no UAC prompt
+  bool locked = bind.mainIsInstalled() && ElvsTech.securityLocked();
   final scrollController = ScrollController();
 
   @override
@@ -1826,7 +1827,8 @@ class _Network extends StatefulWidget {
 class _NetworkState extends State<_Network> with AutomaticKeepAliveClientMixin {
   @override
   bool get wantKeepAlive => true;
-  bool locked = !isWeb && bind.mainIsInstalled();
+  // elvs (16.2.2): unlocked for the technician (code or running session), no UAC prompt
+  bool locked = !isWeb && bind.mainIsInstalled() && ElvsTech.securityLocked();
 
   final scrollController = ScrollController();
 
