@@ -65,7 +65,9 @@ class _DesktopServerPageState extends State<DesktopServerPage>
   void onWindowClose() {
     // Other platforms keep the old behaviour exactly: the ambiguity this guards against is a
     // Linux session logout, which closes every window in the session.
-    final byOperator = _cmClosedByOperator || !isLinux;
+    // elvs (16.2.4): on every desktop. A Windows restart/logoff closes this window as well;
+    // only the customer's own close or "Trennen" may end the 15-minute approval.
+    final byOperator = _cmClosedByOperator;
     Future.wait([gFFI.serverModel.closeAll(byOperator: byOperator), gFFI.close()]).then((_) {
       if (isMacOS) {
         RdPlatformChannel.instance.terminate();

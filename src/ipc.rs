@@ -529,7 +529,10 @@ pub enum Data {
     /// session active. So the ambiguous case ends the session WITHOUT the no-retry reason and
     /// the peer is allowed to reconnect (landing on the greeter after a logout), while the
     /// explicit Disconnect button keeps sending `Close` and kicking for good.
-    #[cfg(target_os = "linux")]
+    // elvs (16.2.4): on all desktops. A Windows restart or logoff closes the CM window too,
+    // and treating that like "Trennen" ended the 15-minute approval (elvs_grant) and told the
+    // technician not to retry.
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     CmWindowClosed,
     // --- DRM/KMS capture (opt-in `drm` feature) over the `_drm` service-scoped channel ---
     // All of the following are `cfg(all(linux, drm))`, so the drm-off IPC wire is byte-identical

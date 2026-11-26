@@ -781,7 +781,7 @@ impl Connection {
                         // send the manual close reason: it is the one thing that stops the peer
                         // from retrying, and on a logout the retry is the whole point - it is
                         // what puts the peer back on the login screen a moment later.
-                        #[cfg(target_os = "linux")]
+                        #[cfg(not(any(target_os = "android", target_os = "ios")))]
                         ipc::Data::CmWindowClosed => {
                             conn.chat_unanswered = false; // seen
                             conn.file_transferred = false; //seen
@@ -1363,7 +1363,7 @@ impl Connection {
                             // Same end as above: a tunnel must not outlive the window either.
                             // Only the reason differs, and a port forward carries none - the
                             // peer sees the tunnel drop and decides for itself.
-                            #[cfg(target_os = "linux")]
+                            #[cfg(not(any(target_os = "android", target_os = "ios")))]
                             ipc::Data::CmWindowClosed => {
                                 bail!("Connection manager window closed");
                             }

@@ -381,7 +381,7 @@ pub fn close(id: i32) {
 
 /// Like `close`, but says the CM's WINDOW closed rather than a person disconnecting this peer.
 /// See `ipc::Data::CmWindowClosed`.
-#[cfg(target_os = "linux")]
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub fn close_window(id: i32) {
     if let Some(client) = CLIENTS.read().unwrap().get(&id) {
         allow_err!(client.tx.send(Data::CmWindowClosed));
